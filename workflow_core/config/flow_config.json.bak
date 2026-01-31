@@ -1,0 +1,34 @@
+{
+    "root_markers": [
+        "gemini.md",
+        "claude.md",
+        "chatgpt.md",
+        ".git"
+    ],
+    "prefixes": {
+        "planning": [
+            "Plan",
+            "Design",
+            "Init",
+            "Review",
+            "Research"
+        ],
+        "execution": [
+            "Impl",
+            "Valid",
+            "Git",
+            "Gate",
+            "Refactor",
+            "Doc",
+            "Fix",
+            "Test"
+        ]
+    },
+    "status_files": [
+        "design/roadmap/phases/phase5/status.md",
+        "status.md",
+        "docs/status.md",
+        "todo.md"
+    ],
+    "backup_count": 3
+}

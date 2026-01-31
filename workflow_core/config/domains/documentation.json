@@ -1,0 +1,37 @@
+{
+    "WorkflowBindings": {
+        "Doc": {
+            "Update": {
+                "TaskSet": "Documentation",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Documentation Verification",
+                "Pipeline": [
+                    {
+                        "action": "generate_report",
+                        "template": "Doc_Update",
+                        "suffix": "Doc.Update",
+                        "description": "Generate Doc Update Report"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "test -f {service_path}/README.md",
+                        "description": "Verify README Exists"
+                    },
+                    {
+                        "action": "require_review",
+                        "description": "Expert Review (Completeness)"
+                    }
+                ]
+            }
+        }
+    },
+    "TaskSets": {
+        "Documentation": {
+            "checklist": [
+                "README Update",
+                "Architecture Diagram",
+                "API Spec"
+            ]
+        }
+    }
+}

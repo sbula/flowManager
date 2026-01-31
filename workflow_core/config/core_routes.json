@@ -1,0 +1,70 @@
+{
+    "ProcessRoutes": {
+        "Analysis.Strategic": {
+            "PrimaryRole": "handbook/roles.md#Software_Architect",
+            "SupportRole": "handbook/roles.md#Product_Owner",
+            "Directives": "handbook/standards/workflow_git.md#2-monorepo-directory-structure"
+        },
+        "Analysis.Value": {
+            "PrimaryRole": "handbook/roles.md#Trader",
+            "SupportRole": "handbook/roles.md#UX_UI_Designer",
+            "Directives": "handbook/quality_model.md#Value_Driven_Development"
+        },
+        "Analysis.Gap": {
+            "PrimaryRole": "handbook/roles.md#QA_Engineer",
+            "Directives": "handbook/quality_model.md#Reproduction_First"
+        },
+        "Analysis.ML": {
+            "PrimaryRole": "handbook/roles.md#Data_Scientist",
+            "Directives": "handbook/standards/architecture_design.md#3-data-feasibility"
+        },
+        "Design.System": {
+            "PrimaryRole": "handbook/roles.md#Software_Architect",
+            "Directives": "handbook/standards/architecture_design.md#1-api-first-design-openapi"
+        },
+        "Design.UX": {
+            "PrimaryRole": "handbook/roles.md#UX_UI_Designer",
+            "Directives": "handbook/standards/coding.md#24-typescript--react"
+        },
+        "Design.Security": {
+            "PrimaryRole": "handbook/roles.md#Security_Engineer",
+            "Directives": "handbook/quality_model.md#Security_Gates"
+        },
+        "Design.Observability": {
+            "PrimaryRole": "handbook/roles.md#DevOps_Engineer",
+            "Directives": "handbook/standards/observability.md#1-logging-standards"
+        },
+        "Design.DataContract": {
+            "PrimaryRole": "handbook/roles.md#Data_Scientist",
+            "Directives": "handbook/standards/architecture_design.md#1-api-first-design-openapi"
+        },
+        "Impl.UnitTests": {
+            "PrimaryRole": "handbook/roles.md#QA_Engineer",
+            "Directives": "handbook/standards/testing.md#1-core-philosophy-test-driven-development-tdd"
+        },
+        "Impl.Code": {
+            "PrimaryRole": "handbook/roles.md#Software_Engineer",
+            "Directives": "handbook/standards/coding.md#1-general-principles"
+        },
+        "Impl.Infra": {
+            "PrimaryRole": "handbook/roles.md#DevOps_Engineer",
+            "Directives": "handbook/standards/infrastructure.md#1-infrastructure-as-code-iac"
+        },
+        "Verify.Integration": {
+            "PrimaryRole": "handbook/roles.md#QA_Engineer",
+            "Directives": "handbook/quality_model.md#Integration_Testing"
+        },
+        "Verify.Operational": {
+            "PrimaryRole": "handbook/roles.md#DevOps_Engineer",
+            "Directives": "handbook/quality_model.md#Operational_Readiness"
+        },
+        "Verify.Docs": {
+            "PrimaryRole": "handbook/roles.md#Technical_Writer",
+            "Directives": "handbook/standards/documentation.md#1-documentation-principles"
+        },
+        "Verify.Secrets": {
+            "PrimaryRole": "handbook/roles.md#Security_Engineer",
+            "Directives": "handbook/quality_model.md#Secret_Scanning"
+        }
+    }
+}

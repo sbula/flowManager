@@ -1,0 +1,59 @@
+{
+    "name": "Planning.ExpertCouncil",
+    "version": "1.0",
+    "description": "Expert Council Planning Protocol (Research -> Synthesis -> Review)",
+    "steps": [
+        {
+            "id": "stage_a_research",
+            "type": "atom",
+            "ref": "Research_Sequencer",
+            "args": {
+                "expert_set": "${council_set}",
+                "target_dir": "audit"
+            },
+            "description": "Stage A: Expert Research Loop"
+        },
+        {
+            "id": "stage_b_init_draft",
+            "type": "atom",
+            "ref": "Render_Template",
+            "args": {
+                "template_name": "Implementation_Header",
+                "target_file": "${artifact_dir}/${task_id_snake}_Planning.md"
+            },
+            "description": "Stage B: Initialize Draft Plan"
+        },
+        {
+            "id": "stage_b_drafting",
+            "type": "atom",
+            "ref": "Wait_For_Manual_Approval",
+            "args": {
+                "target_file": "${artifact_dir}/${task_id_snake}_Planning.md",
+                "marker": "Status: **READY_FOR_REVIEW**"
+            },
+            "instructions": "Stage B: Synthesis (Drafting)\n\nROLE: You are the **${author_role}**.\nINPUT: Read ALL Focus Documents in variable `audit/` directory.\nTASK: Synthesize these findings into the Draft Plan.\n\nCRITICAL:\n1. Address every constraint from the Focus Docs.\n2. Do NOT leave placeholders.\n3. When done, change Status to **READY_FOR_REVIEW**.",
+            "description": "Stage B: WaitFor Draft Completion"
+        },
+        {
+            "id": "stage_c_review",
+            "type": "workflow",
+            "ref": "Review.Standard",
+            "args": {
+                "expert_set": "${council_set}",
+                "review_file": "${artifact_dir}/${task_id_snake}_Planning.md"
+            },
+            "description": "Stage C: Expert Review Loop"
+        },
+        {
+            "id": "stage_d_signoff",
+            "type": "atom",
+            "ref": "Wait_For_Manual_Approval",
+            "args": {
+                "target_file": "${artifact_dir}/${task_id_snake}_Planning.md",
+                "marker": "APPROVED"
+            },
+            "instructions": "Stage D: Final Sign-off.\n\nWait for Human/Product Owner to mark `[x] APPROVED`.",
+            "description": "Stage D: Final Human Approval"
+        }
+    ]
+}

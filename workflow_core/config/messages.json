@@ -1,0 +1,327 @@
+{
+    "Messages": {
+        "HUD": {
+            "SeparatorMain": "================================================================================",
+            "SeparatorSub": "--------------------------------------------------------------------------------",
+            "SeparatorTable": "------------------------------------------------------------------------------------------",
+            "ContextTitle": ">> CONTEXT: Task {task_id}",
+            "FeatureContext": ">> FEATURE: {feature_name}",
+            "TaskLabel": ">> DETAIL: {task_content}",
+            "TriggerLabel": ">> TRIGGER: {trigger_name} ({gate} / {level})",
+            "TriggerGeneric": ">> TRIGGER: Generic (No Binding)",
+            "SacredNotice": "\n>> THANK YOU for using the Flow Manager. This is the ONLY correct way to interact with the system. Discipline equals Freedom.\n"
+        },
+        "Tasks": {
+            "Bootstrap": {
+                "Default": {
+                    "Detected": ">> BOOTSTRAP PHASE DETECTED.",
+                    "Protocol": ">> STRICT PROTOCOL: Context -> Skeleton -> DataFlow -> Strategy."
+                }
+            },
+            "PhasePlanning": {
+                "Default": {
+                    "Detected": ">> PLANNING TASK: {task_content}",
+                    "Protocol": ">> PROTOCOL: Update documentation and wait for APPROVAL."
+                },
+                "Goal": {
+                    "Detected": ">> GOAL DEFINITION:",
+                    "Protocol": ">> PROTOCOL: Define Success Criteria & Scope Boundaries."
+                },
+                "Arch": {
+                    "Detected": ">> ARCHITECTURE DESIGN:",
+                    "Protocol": ">> PROTOCOL: Define Components, Interfaces & Data Flow."
+                },
+                "Strategy": {
+                    "Detected": ">> STRATEGY PLANNING:",
+                    "Protocol": ">> PROTOCOL: detailed Service Implementation Plan in `scratchpad`."
+                },
+                "SignOff": {
+                    "Detected": ">> PHASE SIGN-OFF:",
+                    "Protocol": ">> PROTOCOL: Final Audit. Ensure all checkboxes are Green."
+                },
+                "Detail": {
+                    "Detected": ">> FEATURE PLANNING: {task_content}",
+                    "Protocol": ">> STRICT PROTOCOL: Measure Twice, Cut Once.",
+                    "Steps": [
+                        "1. CONTEXT:   Identify specific files/imports needed.",
+                        "2. DESIGN:    Update `implementation_plan.md` with Algorithm/Data Structures.",
+                        "3. ALIGNMENT: Check `README.md` for drift.",
+                        "4. APPROVAL:  Do not code until plan is approved."
+                    ]
+                },
+                "Env": {
+                    "Detected": ">> ENVIRONMENT CHECK:",
+                    "Check": [
+                        "STRICT PROTOCOL: Verify Toolchain Versions & Secrets.",
+                        "1. CHECK: Read `infrastructure/project-config/tech_stacks.json`.",
+                        "2. ACTION: Install exact versions specified.",
+                        "3. SECRETS: Verify `.env` is loaded and valid."
+                    ]
+                }
+            },
+            "Implementation": {
+                "Default": {
+                    "Detected": ">> IMPLEMENTATION TASK: {task_content}",
+                    "Protocol": ">> PROTOCOL: Red -> Green -> Refactor (TDD)."
+                },
+                "Feature": {
+                    "Detected": ">> FEATURE IMPLEMENTATION: {task_content}",
+                    "Protocol": ">> STRICT PROTOCOL: 1. Create Test ({unit_test_cmd}) -> 2. Implement -> 3. Verify. 4. CRITICAL: Unit Tests MUST cover ALL edge cases (Nulls, Limits, Timeouts)."
+                },
+                "Fix": {
+                    "Detected": ">> BUG FIX: {task_content}",
+                    "Protocol": ">> STRICT PROTOCOL: 1. Reproduce (Red Test). 2. Fix. 3. Verify Regression."
+                },
+                "Refactor": {
+                    "Detected": ">> REFACTORING CORE: {task_content}",
+                    "Protocol": ">> STRICT PROTOCOL: Ensure NO REGRESSIONS. Run full verification suite."
+                }
+            },
+            "Validation": {
+                "Default": {
+                    "Detected": ">> VALIDATION TASK: {task_content}",
+                    "Protocol": ">> PROTOCOL: Run verification commands and fix findings."
+                },
+                "Quality": {
+                    "Detected": ">> QUALITY CHECK: {service_name}",
+                    "Protocol": ">> STRICT PROTOCOL: Zero Tolerance for Lint/Complexity errors.",
+                    "Steps": [
+                        "1. Run Check: {lint_check_cmd}",
+                        "2. Analyze:   {complexity_check_cmd}",
+                        "3. Fix:       Resolve all errors before proceeding."
+                    ],
+                    "Blockers": {
+                        "Lint": "\n>> [BLOCKER] Linting Check Failed.\n>> ACTION: You must FIX the code to resolve these warnings.\n>> DO NOT manually mark the task.\n>> INSTRUCTION: 1. Read errors. 2. Edit Code. 3. Run 'flow_manager' to re-verify.",
+                        "Complexity": "\n>> [BLOCKER] Complexity Limit Exceeded.\n>> ACTION: Refactor code to reduce cognitive load.\n>> CRITICAL: You MUST run Unit Tests ('poetry run pytest' or 'cargo test') after refactoring."
+                    }
+                },
+                "Unit": {
+                    "Detected": ">> UNIT TESTING: {task_content}",
+                    "Protocol": ">> CHECK: Isolated Logic. Mock Dependencies. Coverage > 90%.",
+                    "Steps": [
+                        "1. Run: {unit_test_cmd}"
+                    ]
+                },
+                "Integration": {
+                    "Detected": ">> INTEGRATION TESTING: {task_content}",
+                    "Protocol": ">> CHECK: Service Wiring, DB, Kafka, APIs.",
+                    "Steps": [
+                        "1. Run: {integration_test_cmd}"
+                    ]
+                },
+                "E2E": {
+                    "Detected": ">> END-TO-END TESTING: {task_content}",
+                    "Protocol": ">> CHECK: Critical User Flows (Golden Path).",
+                    "Steps": [
+                        "1. Run: {e2e_test_cmd}"
+                    ]
+                },
+                "Regression": {
+                    "Detected": ">> REGRESSION SUITE: {task_content}",
+                    "Protocol": ">> CHECK: Verify System Stability. No broken windows.",
+                    "Steps": [
+                        "1. Run: {unit_test_cmd} && {integration_test_cmd}"
+                    ]
+                },
+                "Performance": {
+                    "Detected": ">> PERFORMANCE BENCHMARK: {task_content}",
+                    "Protocol": ">> CHECK: Latency < 100ms. Throughput > Target.",
+                    "Steps": [
+                        "1. Run: {e2e_test_cmd} --benchmark"
+                    ]
+                }
+            },
+            "Review": {
+                "Default": {
+                    "Detected": ">> REVIEW TASK: {task_content}",
+                    "Protocol": ">> PROTOCOL: Check for blocking findings."
+                },
+                "Code": {
+                    "Detected": ">> CODE REVIEW DETECTED for {service_name}.",
+                    "Protocol": ">> STRICT PROTOCOL: Sequential Expert Review (One Hat at a Time).",
+                    "Steps": [
+                        "1. ROLE PLAY: YOU (AI) must perform the review through the eyes of the {pending_expert}.",
+                        "   >> CONTEXT:     {expert_context}",
+                        "   >> INSTRUCTION: {expert_instruction}",
+                        "   >> OUTPUT GOAL: {expert_goal}",
+                        "2. DOCUMENT:  Fill out the corresponding template section in the Report.",
+                        "3. ADVANCE:   Call 'flow_manager' once again to proceed to the next expert."
+                    ],
+                    "ExpertPrompts": {
+                        "QA Engineer": {
+                            "Context": "Test Integrity, Meaningful Assertions, Edge Cases.",
+                            "Instruction": "1. FAKE TEST AUDIT: Reject 'assert True', self-mocking, or tautologies. 2. EDGE CASES: Mandate tests for: Nulls, Max Integers, Startup/Teardown sequences, Network Timeouts, Partial JSONs, and other context-specific failures. MUST cover ALL important edge cases. 3. MEANINGFULNESS: Reject 'Coverage Padding'. 4. DUPLICATES: Reject tests checking identical paths.",
+                            "Output": "Confirm 100% MEANINGFUL coverage & Edge Case Saturation."
+                        },
+                        "SRE (DevOps)": {
+                            "Context": "Resource Starvation, retry storms, config drift.",
+                            "Instruction": "1. TIMEOUTS: Verification of client/server timeout mismatches (e.g., LB < App). 2. RETRY LOGIC: Reject unbounded retries (ensure Jitter + Backoff). 3. ENV VARS: Reject defaults in code (must fail if Env Var missing). 4. LOGGING: Verify structured logs (JSON) and no sensitive data leakage.",
+                            "Output": "Confirm production readiness (12-Factor + Hard Limits)."
+                        },
+                        "Security": {
+                            "Context": "Injection, deserialization, privilege escalation.",
+                            "Instruction": "1. INPUT SANITIZATION: Inspect all public API boundaries for raw object passage. 2. DESERIALIZATION: Reject 'pickle' or unsafe YAML. 3. DEPENDENCIES: Check 'poetry.lock' for CVEs (audit only). 4. SECRETS: Reject any high-entropy strings in source code.",
+                            "Output": "Verify 'Deny-by-Default' architecture."
+                        },
+                        "Head of Trading": {
+                            "Context": "Fat finger, negative prices, order storms.",
+                            "Instruction": "1. FAT FINGER: Verify 'Max Order Value' checks exist and are atomic. 2. NEGATIVE PRICES: Ensure system handles negative/zero prices gracefully (no crashes). 3. MARKET HALTS: Check logic for 'Circuit Breaker' signal handling. 4. DOUBLE FILL: Review idempotency on Order Execution paths.",
+                            "Output": "Confirm P&L Safety and Regulatory Compliance."
+                        },
+                        "FPGA Specialist": {
+                            "Context": "Cache locality, branch prediction, memory layout.",
+                            "Instruction": "1. CACHE LINES: Inspect data structs for padding/alignment (64-byte awareness). 2. BRANCHING: Reject complex branching in hot loops (favor branchless/lookup tables). 3. ALLOCATIONS: Reject Heap Allocations in critical path (Hot Path = 0 Alloc). 4. LOCKING: Verify no lock contention (prefer lock-free queues).",
+                            "Output": "Zero Heap Allocs on Hot Path & optimal cache usage."
+                        },
+                        "Database Specialist": {
+                            "Context": "ACID, N+1, Indexing, Migrations.",
+                            "Instruction": "1. N+1 QUERY: Detect loops triggering DB calls. 2. TRANSACTIONS: Verify atomic blocks cover full business ops. 3. INDEXING: Check if query filters match existing indices. 4. MIGRATIONS: Reject irreversible schema changes (must be backward compatible).",
+                            "Output": "Validated Execution Plans & Transaction Safety."
+                        },
+                        "Architect": {
+                            "Context": "Cyclic dependencies, interface leaks, SOLID.",
+                            "Instruction": "1. CYCLES: Reject circular imports or module cycles. 2. INTERFACE LEAK: Ensure implementation details (e.g., specific DB exceptions) don't leak to Domain. 3. DEPENDENCY RULE: Domain must NOT depend on Infrastructure. 4. SINGLE RESPONSIBILITY: Reject 'God Classes' (>300 LOC is a smell).",
+                            "Output": "Clean Hexagonal Boundaries preserved."
+                        },
+                        "Performance Engineer": {
+                            "Context": "Throughput, P99 latency, GC pauses.",
+                            "Instruction": "1. HOT PATH: Identify the 20% of code running 80% user time. 2. COMPLEXITY: Reject O(N^2) or worse in collections logic. 3. I/O BLOCKING: Reject sync I/O in async/event loops. 4. OBJECT CHURN: Inspect tight loops for excessive temporary object creation.",
+                            "Output": "Confirmed <100us processing overhead."
+                        },
+                        "Compliance Officer": {
+                            "Context": "Immutability, Traceability, PII.",
+                            "Instruction": "1. AUDIT LOG: Verify *every* state change produces an immutable log entry. 2. TRACEABILITY: Ensure Request IDs propagate across all async boundaries. 3. DATA RETENTION: Check for hard-deletion logic (is it compliant?). 4. ACCESS: Verify strict role-based checks.",
+                            "Output": "100% Traceability functionality."
+                        },
+                        "Product Owner": {
+                            "Context": "Acceptance Criteria, Gold-Plating, User Story.",
+                            "Instruction": "1. SCOPE CREEP: Reject features not in the original Task Description. 2. GOLD PLATING: Check 'Does this do more than necessary?'. 3. CRITERIA: Verify strict adherence to the formatting/output requirements. 4. USABILITY: Review error messages for human-readability.",
+                            "Output": "Feature matches expectation exactly."
+                        },
+                        "Senior Backend Developer": {
+                            "Context": "Readability, pythonic/rustacean patterns, naming.",
+                            "Instruction": "1. NAMING: Reject vague names ('data', 'manager', 'process'). 2. IDIOMS: Ensure Python uses List Comps/Context Managers; Rust uses Option/Result map. 3. COMMENTS: Reject 'what' comments; Require 'why' comments. 4. DRY: Identify repeated logic > 3 lines.",
+                            "Output": "Code is self-documenting and follows Project Style."
+                        },
+                        "Quant Dev": {
+                            "Context": "Float precision, NaNs, statistical validity.",
+                            "Instruction": "1. FLOAT PRECISION: Reject '==' comparisons on floats. Use 'Decimal' for currencies. 2. NaN HANDLING: Verify behavior when indicators return NaN/Inf. 3. LOOKAHEAD: Strict check for future-data leakage in backtesting logic. 4. OFF-BY-ONE: Inspect array slicing boundaries.",
+                            "Output": "Mathematical correctness & Numerical Stability."
+                        },
+                        "Test Automation Engineer": {
+                            "Context": "Flakiness, execution time, isolation.",
+                            "Instruction": "1. FLAKINESS: Reject tests dependent on external state/time.sleep(). 2. SETUP/TEARDOWN: Usage of Fixtures vs global state. 3. SPEED: Reject Unit Tests taking > 10ms. 4. ISOLATION: Verify no FS/Network debris left after run.",
+                            "Output": "Deterministic & Fast Test Suite."
+                        },
+                        "Principal Architect": {
+                            "Context": "Long-term vision, Tech Debt, Simplicity.",
+                            "Instruction": "1. SIMPLICITY: 'Is there a simpler way?' (Reject Over-Engineering). 2. TECH DEBT: Flag any 'temporary hacks' without tracking tickets. 3. ALIGNMENT: Does this match the 'Config-Driven' philosophy? 4. KNOWLEDGE: Ensure new patterns are documented/KI-compatible.",
+                            "Output": "Strategic Alignment verified."
+                        },
+                        "ML Engineer": {
+                            "Context": "Model drift, feature skew, inference latency, determinism.",
+                            "Instruction": "1. DETERMINISM: Verify that same inputs = same outputs (seed control). 2. FEATURE SKEW: Check if training logic matches inference logic. 3. LATENCY: Reject models that cannot meet the 50ms inference budget. 4. SERIALIZATION: Ensure models are loaded safely (no pickle/unsafe). 5. TEST DATA: Verify coverage of Performance/Latency tests.",
+                            "Output": "Model reproducibility & Performance constraints met."
+                        }
+                    }
+                },
+                "Security": {
+                    "Detected": ">> SECURITY AUDIT DETECTED.",
+                    "Protocol": ">> STRICT PROTOCOL: Review Dependencies and Secrets. Zero Critical Vulnerabilities."
+                },
+                "Architecture": {
+                    "Detected": ">> ARCHITECTURE REVIEW:",
+                    "Protocol": ">> CHECK: Pipeline Alignment, Dependency Graph, Bottlenecks."
+                }
+            },
+            "Gate": {
+                "Default": {
+                    "Detected": ">> GATE: {task_content}",
+                    "Protocol": ">> STRICT PROTOCOL: All checks must pass."
+                },
+                "Feature": {
+                    "Detected": ">> FEATURE GATE: {task_content} (Sequential Review)",
+                    "Protocol": ">> STRICT PROTOCOL: Sequential Expert Review (The Gauntlet).",
+                    "Steps": [
+                        "1. ROLE PLAY: YOU (AI) must perform the review through the eyes of the {pending_expert}.",
+                        "   >> CONTEXT:     {expert_context}",
+                        "   >> INSTRUCTION: {expert_instruction}",
+                        "   >> OUTPUT GOAL: {expert_goal}",
+                        "2. DOCUMENT:  Fill out the corresponding template section in the Report.",
+                        "3. ADVANCE:   Call 'flow_manager' once again to proceed to the next expert."
+                    ]
+                }
+            },
+            "Git": {
+                "Default": {
+                    "Detected": ">> GIT OPERATION DETECTED.",
+                    "Protocol": ">> STRICT PROTOCOL: Branch Management Only."
+                },
+                "Branch": {
+                    "Detected": ">> BRANCH CREATION: {task_content}",
+                    "Protocol": ">> CHECK: Ensure you are branching from updated Master."
+                },
+                "Merge": {
+                    "Detected": ">> MERGE OPERATION: {task_content}",
+                    "Protocol": ">> CHECK: Squash & Merge Only. Verify CI Green."
+                }
+            }
+        },
+        "LegacyGuidance": {
+            "Header": "\n>> SUGGESTED GUIDANCE (Found by Keywords):",
+            "Body": "   [Search] Check 'knowledge/' or 'design/' for keywords: {keywords}"
+        },
+        "TestingStandards": {
+            "Enforcement": ">> ENFORCEMENT: Quantivista Reliability Standards (Level 1 & 2)",
+            "Level1": "   [ ] LEVEL 1: Boundary Analysis Table (Mandatory in Feature Spec).",
+            "Level2": "   [ ] LEVEL 2: Property-Based Testing (Mandatory for Logic).",
+            "Ref": "   >> REF: handbook/testing_standards.md",
+            "TriggerTaskSets": [
+                "FeatureSpec",
+                "TestUnit",
+                "TestIntegration"
+            ]
+        }
+    },
+    "Prompts": {
+        "Mini_Planning_Prompt": {
+            "Header": "## Detailed Planning (Mandatory)",
+            "Content": "**Task**: {task_id} - {feature_name}\n\n### 1. Use Case Definition\n*Describe the specific scenario we are developing here.*\n\n### 2. Prerequisites & Dependencies\n*List strict prerequisites (e.g. data availability, previous tasks) and imports.*\n\n### 3. I/O Specification\n- **Inputs**: [Type/Schema]\n- **Outputs**: [Type/Schema]\n\n### 4. Corner Case Analysis (Unit Test Basis)\n> **CRITICAL**: List ALL corner cases. These MUST be covered by unit tests.\n- [ ] Null/Empty Inputs\n- [ ] Boundary Values (Min/Max)\n- [ ] Invalid Formats/Types\n- [ ] State Conflicts (e.g. Warmup vs Live)\n- [ ] Error Propagation (Safe Catch)\n\n### 5. Project Plan & Subtasks\n*Breakdown the implementation steps dependent on this plan.*\n- [ ] Step 1...\n\n---\n"
+        },
+        "Planning_Verdict": {
+            "Header": "## Final Plan Approval",
+            "Content": "**Decision**: [ ] APPROVE\n**Sign-off**: USER\n"
+        }
+    },
+    "Conformance": {
+        "Header": "[2] CONFORMANCE MATRIX (Required Sub-Tasks & Owners)",
+        "TableHeader": "PERSONA                        | ROLE            | WRITE TARGET/REASON",
+        "TargetStatus": "status.md (Append ONLY)",
+        "TargetGit": "N/A (Git Action)",
+        "RoleReviewerDNA": "Reviewer [DNA]"
+    },
+    "Protocol": {
+        "Header": "[3] PROTOCOL RULES (Crucial Snippets)",
+        "TopicLabel": ">> TOPIC: {title}",
+        "RefsLabel": ">> REFS:  {ref}"
+    },
+    "Directives": {
+        "Header": "[4] DYNAMIC DIRECTIVES (From Standards)",
+        "NoneFound": ">> No specific standard directive found for this task type."
+    },
+    "Footer": {
+        "NextAction": ">> NEXT ACTION: Inspect 'status.md' and proceed according to the MATRIX above."
+    },
+    "Errors": {
+        "DirectiveNotFound": ">> ERROR: Directive file not found: {path}",
+        "DirectiveReadError": ">> ERROR reading directive: {error}",
+        "RemoteSync": {
+            "Requirement": "Requirement: Remote Sync (Push) Required.",
+            "Error": "   ERROR: Local branch '{branch}' is ahead of origin.",
+            "Action": "   ACTION: Run 'git push origin {branch}' before marking task complete."
+        },
+        "TamperDetection": {
+            "Critical": "\n>> [CRITICAL] TAMPERING DETECTED in status.md.\n>> ACTION: Revert changes immediately.\n>> NOTICE: Resetting the hash requires Human Admin Authorization."
+        }
+    }
+}

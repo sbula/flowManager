@@ -1,0 +1,60 @@
+{
+    "name": "Gate.Feature",
+    "version": "2.2",
+    "steps": [
+        {
+            "id": "init_report",
+            "type": "atom",
+            "ref": "Render_Template",
+            "args": {
+                "template_name": "validation_header_template",
+                "target_file": "${artifact_dir}/${task_id}_Validation.md"
+            },
+            "description": "Initialize Validation Report"
+        },
+        {
+            "id": "check_lint",
+            "type": "atom",
+            "ref": "Run_Command",
+            "args": {
+                "command": "${lint_cmd}",
+                "output_file": "${artifact_dir}/${task_id}_Validation.md",
+                "output_mode": "append",
+                "description": "Linting Analysis Results"
+            },
+            "description": "Quality Gate 1: Linting"
+        },
+        {
+            "id": "check_complexity",
+            "type": "atom",
+            "ref": "Run_Command",
+            "args": {
+                "command": "${complexity_cmd}",
+                "output_file": "${artifact_dir}/${task_id}_Validation.md",
+                "output_mode": "append",
+                "description": "Complexity Analysis Results"
+            },
+            "description": "Quality Gate 2: Complexity"
+        },
+        {
+            "id": "final_review",
+            "type": "workflow",
+            "ref": "Review.Standard",
+            "args": {
+                "review_file": "${artifact_dir}/${task_id}_Validation.md",
+                "expert_set": "Core_Reviewers"
+            },
+            "description": "Quality Gate 3: Expert Panel Review"
+        },
+        {
+            "id": "final_signoff",
+            "type": "atom",
+            "ref": "Wait_For_Manual_Approval",
+            "args": {
+                "target_file": "${artifact_dir}/${task_id}_Validation.md",
+                "marker": "APPROVED"
+            },
+            "description": "Final Gate Approval (Check Report)"
+        }
+    ]
+}

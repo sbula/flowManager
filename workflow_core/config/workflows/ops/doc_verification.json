@@ -1,0 +1,15 @@
+{
+    "name": "Ops.Doc.Verification",
+    "description": "Documentation Integrity Check",
+    "steps": [
+        {
+            "id": "verify_readme",
+            "type": "atom",
+            "ref": "Run_Command",
+            "args": {
+                "command": "test -f ${service_path}/README.md",
+                "description": "Verify README exists"
+            }
+        }
+    ]
+}

@@ -1,0 +1,45 @@
+{
+    "root_markers": [
+        "gemini.md",
+        "claude.md",
+        "chatgpt.md",
+        ".git"
+    ],
+    "paths": {
+        "root": "c:/development/pitbula/quantivista",
+        "roadmap": "c:/development/pitbula/quantivista/design/roadmap/project_map.md",
+        "features": "c:/development/pitbula/quantivista/design/roadmap/features",
+        "reporting": "reports"
+    },
+    "templates": {
+        "feature_init": "workflow_core/config/templates/feature_status_init.j2"
+    },
+    "prefixes": {
+        "planning": [
+            "Plan",
+            "Design",
+            "Init",
+            "Review",
+            "Research",
+            "Workflow"
+        ],
+        "execution": [
+            "Impl",
+            "Valid",
+            "Git",
+            "Gate",
+            "Refactor",
+            "Doc",
+            "Fix",
+            "Test"
+        ]
+    },
+    "status_files": [
+        "status.md",
+        "docs/status.md",
+        "todo.md",
+        "design/roadmap/phases/phase5/status.md"
+    ],
+    "backup_count": 3,
+    "strict_mode": true
+}

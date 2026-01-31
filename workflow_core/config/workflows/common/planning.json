@@ -1,0 +1,52 @@
+{
+    "name": "Planning_Standard",
+    "version": "1.0",
+    "steps": [
+        {
+            "id": "render_mini_plan",
+            "type": "atom",
+            "ref": "Render_Template",
+            "args": {
+                "template_name": "Mini_Planning_Prompt",
+                "target_file": "Review.md"
+            }
+        },
+        {
+            "id": "wait_draft_confirm",
+            "type": "atom",
+            "ref": "Wait_For_CLI_Confirmation",
+            "args": {
+                "message": "Is the Planning Draft complete and ready for Review?"
+            },
+            "description": "User confirm Plan Complete"
+        },
+        {
+            "id": "sequential_review_loop",
+            "type": "atom",
+            "ref": "Expert_Sequencer",
+            "args": {
+                "target_file": "Review.md"
+            },
+            "description": "Strict Sequential Expert Injection & Approval"
+        },
+        {
+            "id": "render_verdict",
+            "type": "atom",
+            "ref": "Render_Template",
+            "args": {
+                "template_name": "Planning_Verdict",
+                "target_file": "Review.md"
+            }
+        },
+        {
+            "id": "wait_final_verdict",
+            "type": "atom",
+            "ref": "Wait_For_Manual_Approval",
+            "args": {
+                "target_file": "Review.md",
+                "marker": "[x] APPROVE"
+            },
+            "description": "Wait for Final Plan Sign-off"
+        }
+    ]
+}

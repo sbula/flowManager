@@ -1,0 +1,179 @@
+{
+    "TaskSets": {
+        "FeatureGate": {
+            "checklist": [
+                "Verify Implementation",
+                "Automated Checks",
+                "Manual Review"
+            ]
+        },
+        "FixGate": {
+            "checklist": [
+                "Verify Fix",
+                "Regression Check",
+                "Manual Review"
+            ]
+        },
+        "RefactorGate": {
+            "checklist": [
+                "Verify Behavior Preservation",
+                "Complexity Check",
+                "Manual Review"
+            ]
+        },
+        "SystemGate": {
+            "checklist": [
+                "E2E Verification",
+                "Performance Check",
+                "Manual Review"
+            ]
+        }
+    },
+    "definitions": {
+        "Gate": {
+            "Feature": {
+                "name": "Feature Gate",
+                "binding_ref": "Gate.Feature"
+            },
+            "Fix": {
+                "name": "Fix Gate",
+                "binding_ref": "Gate.Fix"
+            },
+            "Refactor": {
+                "name": "Refactor Gate",
+                "binding_ref": "Gate.Refactor"
+            },
+            "System": {
+                "name": "System Gate",
+                "binding_ref": "Gate.System"
+            }
+        }
+    },
+    "WorkflowBindings": {
+        "Gate": {
+            "Feature": {
+                "TaskSet": "FeatureGate",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Automated Validation & Feature Review",
+                "Pipeline": [
+                    {
+                        "action": "generate_report",
+                        "template": "Gate_Feature",
+                        "suffix": "Gate.Feature",
+                        "description": "Generate Gate Feature Report"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{lint_check_cmd}",
+                        "description": "Linting Check"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{complexity_check_cmd}",
+                        "description": "Complexity Check"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{unit_test_cmd}",
+                        "description": "Unit Tests"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{integration_test_cmd}",
+                        "description": "Integration Tests"
+                    },
+                    {
+                        "action": "require_review",
+                        "description": "Expert Review Completeness"
+                    }
+                ]
+            },
+            "Fix": {
+                "TaskSet": "FixGate",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Bug Fix Verification",
+                "Pipeline": [
+                    {
+                        "action": "generate_report",
+                        "template": "Gate_Fix",
+                        "suffix": "Gate.Fix",
+                        "description": "Generate Fix Gate Report"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{unit_test_cmd}",
+                        "description": "Unit Verify"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{integration_test_cmd}",
+                        "description": "Integration Verify"
+                    },
+                    {
+                        "action": "require_review",
+                        "description": "Expert Review (Sign-Off)"
+                    }
+                ]
+            },
+            "Refactor": {
+                "TaskSet": "RefactorGate",
+                "ExpertSet": "PlatformGrid",
+                "Description": "Refactoring Verification",
+                "Pipeline": [
+                    {
+                        "action": "generate_report",
+                        "template": "Gate_Refactor",
+                        "suffix": "Gate.Refactor",
+                        "description": "Generate Refactor Gate Report"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{unit_test_cmd}",
+                        "description": "Unit Verify"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{integration_test_cmd}",
+                        "description": "Integration Verify"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{complexity_check_cmd}",
+                        "description": "Complexity Validation"
+                    },
+                    {
+                        "action": "require_review",
+                        "description": "Expert Review (Sign-Off)"
+                    }
+                ]
+            },
+            "System": {
+                "TaskSet": "SystemGate",
+                "ExpertSet": "QualityAssurance",
+                "Description": "System-Wide Verification",
+                "Pipeline": [
+                    {
+                        "action": "generate_report",
+                        "template": "Gate_System",
+                        "suffix": "Gate.System",
+                        "description": "Generate System Gate Report"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{e2e_test_cmd}",
+                        "description": "End-to-End Tests"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{performance_test_cmd}",
+                        "description": "Performance Validation"
+                    },
+                    {
+                        "action": "require_review",
+                        "description": "Expert Review (Release Sign-Off)"
+                    }
+                ]
+            }
+        }
+    }
+}

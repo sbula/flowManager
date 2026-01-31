@@ -1,0 +1,18 @@
+{
+    "name": "Ops.Git.Branch",
+    "description": "Git Branch Creation & Checks",
+    "steps": [
+        {
+            "id": "verify_branch_state",
+            "type": "atom",
+            "ref": "Wait_For_Manual_Approval",
+            "args": {
+                "message": "Manual Check: Verify current branch is correct and clean.",
+                "marker": "Status: **READY**",
+                "target_file": "${status_file}"
+            },
+            "instructions": "1. Ensure you are on the correct base branch (usually master).\n2. Ensure no uncommitted changes exist.\n3. Create or checkout the target feature branch.",
+            "description": "Verify Branch State"
+        }
+    ]
+}

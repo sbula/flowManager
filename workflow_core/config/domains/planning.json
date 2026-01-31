@@ -1,0 +1,160 @@
+{
+    "WorkflowBindings": {
+        "Plan": {
+            "Goal": {
+                "Description": "Goal & Scope Alignment",
+                "TaskSet": "Phase5Tasks",
+                "ExpertSet": "ProductCouncil"
+            },
+            "Arch": {
+                "Description": "Architecture & Roles",
+                "TaskSet": "FeasibilityCheck",
+                "ExpertSet": "PlatformGrid"
+            },
+            "Strategy": {
+                "Description": "Execution Strategy",
+                "TaskSet": "ExecutionStrategy",
+                "ExpertSet": "AlphaSquad"
+            },
+            "SignOff": {
+                "Description": "Phase Plan Sign-Off",
+                "TaskSet": "PhaseSignOff",
+                "ExpertSet": "ProductCouncil"
+            },
+            "Detail": {
+                "Description": "Detailed Implementation Plan",
+                "TaskSet": "ImplementationPlan",
+                "ExpertSet": "ExecutionCore"
+            }
+        }
+    },
+    "TaskSets": {
+        "FeasibilityCheck": {
+            "checklist": [
+                "Research Findings",
+                "Regulatory Compliance Check",
+                "Latency Budgeting (p99/p99.9)",
+                "Failover Strategy",
+                "Architecture Decisions",
+                "Infrastructure Requirements",
+                "Component Diagram",
+                "Service Interaction Map",
+                "Trigger Definitions",
+                "Dependency Matrix"
+            ],
+            "command": null
+        },
+        "ExecutionStrategy": {
+            "checklist": [
+                "Risk Parameters",
+                "Data Requirements",
+                "Model Logic",
+                "User Workflows",
+                "Sub-Task Breakdown"
+            ],
+            "command": null
+        },
+        "Phase5Tasks": {
+            "checklist": [
+                "Sub-Task Breakdown",
+                "Non-Functional Requirements",
+                "Goal Definition",
+                "Scope Boundaries"
+            ],
+            "command": null
+        },
+        "PhaseSignOff": {
+            "checklist": [
+                "Plan Summary",
+                "Stakeholder Concerns",
+                "Unanimous Approval"
+            ],
+            "command": null
+        },
+        "ImplementationPlan": {
+            "checklist": [
+                "User Stories",
+                "Acceptance Criteria",
+                "Technical Design",
+                "Verification Plan",
+                "Sub-Task Breakdown"
+            ],
+            "command": null
+        }
+    },
+    "Snippets": {
+        "Plan": {
+            "Context": [
+                {
+                    "Title": "Context Injection (Iterative)",
+                    "Ref": "handbook/phase_initialization_protocol.md (Step 0)",
+                    "Text": "DO NOT just write the file. Initiating Q&A Mode.\nAsk clarifying questions to build 'design/phases/[phase]/context_brief.md' incrementally.\nOnly finalize when User approves the full scope."
+                }
+            ],
+            "Skeleton": [
+                {
+                    "Title": "Skeleton Creation",
+                    "Ref": "handbook/phase_initialization_protocol.md (Step 1)",
+                    "Text": "Read 'project_map.md'. Output ONE Header per Service into status.md.\nGoal: Lock the Scope."
+                }
+            ],
+            "DataFlow": [
+                {
+                    "Title": "Data Flow Analysis",
+                    "Ref": "handbook/phase_initialization_protocol.md (Step 2)",
+                    "Text": "Map Inputs/Outputs between the Headers (Nodes).\nDraft 'design/phases/[phase]/data_flow_map.md'."
+                }
+            ]
+        }
+    },
+    "definitions": {
+        "PhasePlanning": {
+            "Goal": {
+                "name": "Goal & Scope Alignment",
+                "binding_ref": "Plan.Goal",
+                "Pipeline": [
+                    {
+                        "action": "execute_manual",
+                        "description": "Approve Phase Goal and Success Metrics"
+                    }
+                ]
+            },
+            "Arch": {
+                "name": "Architecture & Roles",
+                "binding_ref": "Plan.Arch",
+                "Pipeline": [
+                    {
+                        "action": "execute_manual",
+                        "description": "Approve Architecture and Feasibility"
+                    }
+                ]
+            },
+            "Strategy": {
+                "name": "Execution Strategy",
+                "binding_ref": "Plan.Strategy",
+                "Pipeline": [
+                    {
+                        "action": "execute_manual",
+                        "description": "Approve Execution Strategy"
+                    }
+                ]
+            },
+            "Detail": {
+                "name": "Implementation Plan",
+                "binding_ref": "Plan.Detail",
+                "Pipeline": [
+                    {
+                        "action": "generate_report",
+                        "template": "Plan_Detail",
+                        "suffix": "implementation_plan",
+                        "description": "Generate Implementation Plan"
+                    },
+                    {
+                        "action": "require_review",
+                        "description": "Design Review (Plan Approval)"
+                    }
+                ]
+            }
+        }
+    }
+}

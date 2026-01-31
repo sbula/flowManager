@@ -1,0 +1,39 @@
+{
+    "name": "Execution.TDD",
+    "version": "1.0",
+    "description": "Test Driven Development Cycle",
+    "steps": [
+        {
+            "id": "tdd_red",
+            "type": "atom",
+            "ref": "Wait_For_Manual_Approval",
+            "args": {
+                "target_file": "${test_file}",
+                "marker": "def test_"
+            },
+            "instructions": "MISSION: Write failing tests for ${feature_name}. File: ${test_file}. Requirement: Must fail with NotImplemented or Assertion Error.",
+            "description": "RED: Write Failing Tests"
+        },
+        {
+            "id": "tdd_green",
+            "type": "atom",
+            "ref": "Wait_For_Manual_Approval",
+            "args": {
+                "target_file": "${impl_file}",
+                "marker": "class|def"
+            },
+            "instructions": "MISSION: Write minimal code to pass the tests for ${feature_name}. File: ${impl_file}. Do not over-engineer.",
+            "description": "GREEN: Implement Logic"
+        },
+        {
+            "id": "tdd_verify",
+            "type": "atom",
+            "ref": "Run_Command",
+            "args": {
+                "command": "${unit_test_cmd}"
+            },
+            "instructions": "Running verification command: ${unit_test_cmd}",
+            "description": "VERIFY: Run Unit Tests"
+        }
+    ]
+}

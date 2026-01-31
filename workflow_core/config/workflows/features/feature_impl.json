@@ -1,0 +1,47 @@
+{
+    "name": "Impl.Feature",
+    "version": "2.1",
+    "description": "Standard Feature Implementation Lifecycle (Meta-Flow)",
+    "steps": [
+        {
+            "id": "phase_1_planning",
+            "type": "workflow",
+            "ref": "Planning.Standard",
+            "description": "Step 1: Design & Planning Phase",
+            "args": {
+                "task_id": "${task_id}"
+            }
+        },
+        {
+            "id": "phase_2_execution",
+            "type": "workflow",
+            "ref": "Execution.TDD",
+            "description": "Step 2: Implementation Phase (TDD Loop)",
+            "args": {
+                "test_file": "${test_path}",
+                "impl_file": "${impl_path}",
+                "unit_test_cmd": "${unit_test_cmd}"
+            }
+        },
+        {
+            "id": "phase_3_validation",
+            "type": "workflow",
+            "ref": "Gate.Feature",
+            "description": "Step 3: Validation Phase (Gates)",
+            "args": {
+                "task_id": "${task_id}",
+                "feature_snake": "${feature_snake}"
+            }
+        },
+        {
+            "id": "phase_4_commit",
+            "type": "atom",
+            "ref": "Git_Command",
+            "description": "Step 4: Final Commit",
+            "args": {
+                "action": "commit_push",
+                "message": "feat(${feature_name}): Implement ${task_id}"
+            }
+        }
+    ]
+}

@@ -1,0 +1,86 @@
+{
+    "_comment": "Registry of Atomic Tasks (Hardcoded Logic Binding)",
+    "Atoms": {
+        "Manifest_Parse": {
+            "python_module": "workflow_core.engine.atoms.manifest",
+            "args_schema": {
+                "target_file": "string"
+            }
+        },
+        "render_template": {
+            "python_module": "workflow_core.engine.atoms.render_template",
+            "args_schema": {
+                "template_name": "string",
+                "target_file": "string"
+            }
+        },
+        "Prompt_Render": {
+            "python_module": "workflow_core.engine.atoms.prompt",
+            "args_schema": {
+                "template_string": "string",
+                "template_file": "string",
+                "context": "object"
+            }
+        },
+        "Context_Gather": {
+            "python_module": "workflow_core.engine.atoms.context",
+            "args_schema": {
+                "root": "string",
+                "includes": "array",
+                "excludes": "array"
+            }
+        },
+        "Agent_Query": {
+            "python_module": "workflow_core.engine.atoms.agent",
+            "args_schema": {
+                "prompt": "string",
+                "mock_response": "string"
+            }
+        },
+        "Expert_Loop": {
+            "python_module": "workflow_core.engine.atoms.expert_loop",
+            "args_schema": {
+                "experts": "array",
+                "mode": "string",
+                "prompt_template": "string",
+                "context": "object"
+            }
+        },
+        "Expert_Sequencer": {
+            "python_module": "workflow_core.engine.atoms.expert_sequencer",
+            "args_schema": {
+                "target_file": "string",
+                "expert_set": "string",
+                "mode": "string"
+            }
+        },
+        "Wait_For_Manual_Approval": {
+            "python_module": "workflow_core.engine.atoms.wait_approval",
+            "args_schema": {
+                "target_file": "string",
+                "marker": "string"
+            }
+        },
+        "Run_Command": {
+            "python_module": "workflow_core.engine.atoms.run_command",
+            "args_schema": {
+                "command": "string",
+                "cwd": "string"
+            }
+        },
+        "Git_Command": {
+            "python_module": "workflow_core.engine.atoms.git_command",
+            "args_schema": {
+                "action": "string",
+                "message": "string"
+            }
+        },
+        "Update_State": {
+            "python_module": "workflow_core.engine.atoms.state_update",
+            "args_schema": {
+                "key": "string",
+                "value": "string"
+            }
+        }
+    }
+}

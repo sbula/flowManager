@@ -1,0 +1,16 @@
+# Role: Tech Lead
+# Task: Synthesize Implementation Plan
+
+## Inputs
+{% for role, analysis in context.research_results.items() %}
+### Input from {{ role }}
+{{ analysis }}
+{% endfor %}
+
+## Instructions
+1. Consolidate the research above into a single `Implementation_Plan.md`.
+2. Resolve any conflicting recommendations.
+3. Ensure ALL identified risks are addressed.
+
+## Output Format
+(Standard Implementation Plan Markdown)

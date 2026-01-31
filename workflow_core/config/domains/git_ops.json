@@ -1,0 +1,95 @@
+{
+    "WorkflowBindings": {
+        "Git": {
+            "Branch": {
+                "TaskSet": "GitBranchOps",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Git Branch Creation",
+                "Pipeline": [
+                    {
+                        "action": "execute_manual",
+                        "description": "Verify Branch State & Protection Rules"
+                    }
+                ]
+            },
+            "Merge": {
+                "TaskSet": "GitMergeOps",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Git Merge & Cleanup",
+                "Pipeline": [
+                    {
+                        "action": "execute_manual",
+                        "description": "Squash & Merge to Master"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{unit_test_cmd}",
+                        "description": "Verify Unit Tests"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{integration_test_cmd}",
+                        "description": "Verify Integration Tests"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{e2e_test_cmd}",
+                        "description": "Verify E2E Tests"
+                    },
+                    {
+                        "action": "execute_manual",
+                        "description": "Delete Feature Branch (Local & Remote)"
+                    }
+                ]
+            }
+        }
+    },
+    "TaskSets": {
+        "GitBranchOps": {
+            "checklist": [
+                "Verify Master Status",
+                "Create Feature Branch",
+                "Push Branch"
+            ],
+            "command": null
+        },
+        "GitMergeOps": {
+            "checklist": [
+                "Verify CI Status",
+                "Squash & Merge",
+                "Delete Remote Branch"
+            ],
+            "command": null
+        }
+    },
+    "Snippets": {
+        "Git": {
+            "Branch": [
+                {
+                    "Title": "Git Lifecycle Operation",
+                    "Ref": "handbook/protocols/status/execution_rules.md",
+                    "Text": "1. CHECKOUT the specific feature branch.\n2. VERIFY you are not on Master/Main.\n3. NO TDD required for this step (Infrastructure/Setup only)."
+                }
+            ],
+            "Merge": [
+                {
+                    "Title": "Git Merge Operation",
+                    "Ref": "handbook/protocols/status/execution_rules.md",
+                    "Text": "1. Squash & Merge to Master.\n2. Verify all tests pass (Automated).\n3. Delete local and remote feature branch."
+                }
+            ]
+        }
+    },
+    "definitions": {
+        "Git": {
+            "Branch": {
+                "name": "Branch Creation",
+                "binding_ref": "Git.Branch"
+            },
+            "Merge": {
+                "name": "Merge & Cleanup",
+                "binding_ref": "Git.Merge"
+            }
+        }
+    }
+}

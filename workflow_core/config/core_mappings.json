@@ -1,0 +1,187 @@
+{
+    "TaskMappings": {
+        "Plan.Goal": {
+            "Gate": "PhasePlanning",
+            "Level": "Goal"
+        },
+        "Plan.Arch": {
+            "Gate": "PhasePlanning",
+            "Level": "Arch"
+        },
+        "Plan.Strategy": {
+            "Gate": "PhasePlanning",
+            "Level": "Strategy"
+        },
+        "Plan.SignOff": {
+            "Gate": "PhasePlanning",
+            "Level": "SignOff"
+        },
+        "Plan.Detail": {
+            "Gate": "PhasePlanning",
+            "Level": "Detail"
+        },
+        "Init.Env": {
+            "Gate": "PhasePlanning",
+            "Level": "Env"
+        },
+        "Impl.Feature": {
+            "Gate": "Implementation",
+            "Level": "Feature"
+        },
+        "Impl.Fix": {
+            "Gate": "Implementation",
+            "Level": "Fix"
+        },
+        "Impl.Refactor": {
+            "Gate": "Implementation",
+            "Level": "Refactor"
+        },
+        "Review.Code": {
+            "Gate": "Review",
+            "Level": "Code"
+        },
+        "Review.Security": {
+            "Gate": "Review",
+            "Level": "Security"
+        },
+        "Review.Architecture": {
+            "Gate": "Review",
+            "Level": "Architecture"
+        },
+        "Valid.Quality": {
+            "Gate": "Validation",
+            "Level": "Quality"
+        },
+        "Valid.Unit": {
+            "Gate": "Validation",
+            "Level": "Unit"
+        },
+        "Valid.Integration": {
+            "Gate": "Validation",
+            "Level": "Integration"
+        },
+        "Valid.E2E": {
+            "Gate": "Validation",
+            "Level": "E2E"
+        },
+        "Valid.Regression": {
+            "Gate": "Validation",
+            "Level": "Regression"
+        },
+        "Valid.Performance": {
+            "Gate": "Validation",
+            "Level": "Performance"
+        },
+        "Refactor.Keywords": {
+            "Gate": "Implementation",
+            "Level": "Refactor"
+        },
+        "Refactor.Composite": {
+            "Gate": "Implementation",
+            "Level": "Refactor"
+        },
+        "Refactor.Scaffold": {
+            "Gate": "Implementation",
+            "Level": "Refactor"
+        },
+        "Refactor.Context": {
+            "Gate": "Implementation",
+            "Level": "Refactor"
+        },
+        "Valid.Meta": {
+            "Gate": "Validation",
+            "Level": "Unit"
+        },
+        "Git.Branch": {
+            "Gate": "Git",
+            "Level": "Branch"
+        },
+        "Git.Merge": {
+            "Gate": "Git",
+            "Level": "Merge"
+        },
+        "Gate.Feature": {
+            "Gate": "Gate",
+            "Level": "Feature"
+        },
+        "Gate.Fix": {
+            "Gate": "Gate",
+            "Level": "Fix"
+        },
+        "Gate.Refactor": {
+            "Gate": "Gate",
+            "Level": "Refactor"
+        },
+        "Gate.System": {
+            "Gate": "Gate",
+            "Level": "System"
+        }
+    },
+    "contexts": {
+        "python": {
+            "lint_cmd": "bash workflow_core/validate.sh {service_path} --check lint",
+            "complexity_cmd": "bash workflow_core/validate.sh {service_path} --check complexity",
+            "lint_check_cmd": "python3 workflow_core/scripts/fallback_python.py {service_path} {service_path}/py_cc.json {service_path}/py_lint.json",
+            "lint_report_cmd": "python3 workflow_core/scripts/inject_metrics.py design/roadmap/phases/phase5/reports/3_6_2_Review.md lint {service_path}/py_lint.json",
+            "complexity_check_cmd": "python3 workflow_core/scripts/fallback_python.py {service_path} {service_path}/py_cc.json {service_path}/py_lint_dummy.json",
+            "complexity_report_cmd": "python3 workflow_core/scripts/inject_metrics.py design/roadmap/phases/phase5/reports/3_6_2_Review.md python {service_path}/py_cc.json",
+            "unit_test_cmd": "bash workflow_core/validate.sh {service_path} --check unit",
+            "integration_test_cmd": "bash workflow_core/validate.sh {service_path} --check integration",
+            "e2e_test_cmd": "bash workflow_core/validate.sh {service_path} --check e2e"
+        },
+        "kotlin": {
+            "lint_cmd": "bash workflow_core/validate.sh {service_path} --check lint",
+            "complexity_cmd": "bash workflow_core/validate.sh {service_path} --check complexity",
+            "lint_check_cmd": "python3 workflow_core/scripts/fallback_complexity.py {service_path} {service_path}/target/kt_cc.json {service_path}/target/kt_lint.json",
+            "lint_report_cmd": "python3 workflow_core/scripts/inject_metrics.py design/roadmap/phases/phase5/reports/3_6_2_Review.md lint {service_path}/target/kt_lint.json",
+            "complexity_check_cmd": "python3 workflow_core/scripts/fallback_complexity.py {service_path} {service_path}/target/kt_cc.json {service_path}/target/kt_lint_d.json",
+            "complexity_report_cmd": "python3 workflow_core/scripts/inject_metrics.py design/roadmap/phases/phase5/reports/3_6_2_Review.md kotlin {service_path}/target/kt_cc.json",
+            "unit_test_cmd": "bash workflow_core/validate.sh {service_path} --check unit",
+            "integration_test_cmd": "bash workflow_core/validate.sh {service_path} --check integration",
+            "e2e_test_cmd": "bash workflow_core/validate.sh {service_path} --check e2e"
+        },
+        "rust": {
+            "lint_cmd": "bash workflow_core/validate.sh {service_path} --check lint",
+            "complexity_cmd": "bash workflow_core/validate.sh {service_path} --check complexity",
+            "lint_check_cmd": "bash workflow_core/validate.sh {service_path} --check lint",
+            "lint_report_cmd": "echo 'Rust Lint Injection Not Yet Implemented'",
+            "complexity_check_cmd": "bash workflow_core/validate.sh {service_path} --check complexity",
+            "complexity_report_cmd": "echo 'Rust Complexity Injection Not Yet Implemented'",
+            "unit_test_cmd": "bash workflow_core/validate.sh {service_path} --check unit",
+            "integration_test_cmd": "bash workflow_core/validate.sh {service_path} --check integration",
+            "e2e_test_cmd": "bash workflow_core/validate.sh {service_path} --check e2e"
+        },
+        "typescript": {
+            "lint_cmd": "bash workflow_core/validate.sh {service_path} --check lint",
+            "complexity_cmd": "bash workflow_core/validate.sh {service_path} --check complexity",
+            "lint_check_cmd": "bash workflow_core/validate.sh {service_path} --check lint",
+            "lint_report_cmd": "echo 'TS Lint Injection Not Yet Implemented'",
+            "complexity_check_cmd": "echo 'TS Complexity Check Not Yet Implemented'",
+            "complexity_report_cmd": "echo 'TS Complexity Injection Not Yet Implemented'",
+            "unit_test_cmd": "bash workflow_core/validate.sh {service_path} --check unit",
+            "integration_test_cmd": "bash workflow_core/validate.sh {service_path} --check integration",
+            "e2e_test_cmd": "bash workflow_core/validate.sh {service_path} --check e2e"
+        }
+    },
+    "Snippets": {
+        "General": [
+            {
+                "Title": "Protocol Integrity",
+                "Ref": "handbook/phase_initialization_protocol.md (Rules 1 & 2)",
+                "Text": "1. Fresh Eyes: You MUST reread status.md before any write operation.\n2. Service Lock: You are BLIND to other services. Focus ONLY on the active service."
+            },
+            {
+                "Title": "The Shadow Plan",
+                "Ref": "handbook/status_protocol.md (Rule 3)",
+                "Text": "All planning drafts must occur in 'planning_scratchpad.md'.\nNEVER type new tasks directly into status.md without approval."
+            }
+        ],
+        "PhasePlanning": [
+            {
+                "Title": "Bootstrap Sequence",
+                "Ref": "handbook/phase_initialization_protocol.md",
+                "Text": "Step 0: Context Injection (Draft context_brief.md)\nStep 1: Skeleton Creation (Append Headers)\nStep 2: Data Flow Analysis (Draft data_flow_map.md)\nStep 3: Serialized Planning (Service by Service)"
+            }
+        ]
+    }
+}

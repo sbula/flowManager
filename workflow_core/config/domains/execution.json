@@ -1,0 +1,146 @@
+{
+    "WorkflowBindings": {
+        "Impl": {
+            "Feature": {
+                "TaskSet": "FeatureSpec",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Feature Implementation & Specification",
+                "Pipeline": [
+                    {
+                        "action": "generate_report",
+                        "template": "Impl_Feature",
+                        "suffix": "Impl.Feature",
+                        "description": "Generate Implementation Feature Report"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{lint_cmd}",
+                        "description": "Linting Check"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{complexity_cmd}",
+                        "description": "Complexity Check"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{unit_test_cmd}",
+                        "description": "Unit Tests"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{integration_test_cmd}",
+                        "description": "Integration Tests"
+                    },
+                    {
+                        "action": "require_review",
+                        "description": "Expert Review Completeness"
+                    }
+                ]
+            },
+            "Fix": {
+                "TaskSet": "FixSpec",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Bug Fix & Regression Analysis",
+                "Pipeline": [
+                    {
+                        "action": "generate_report",
+                        "template": "Impl_Fix",
+                        "suffix": "Impl.Fix",
+                        "description": "Generate Fix Report"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{unit_test_cmd}",
+                        "description": "Unit Verify (TDD Green)"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{integration_test_cmd}",
+                        "description": "Regression Test"
+                    },
+                    {
+                        "action": "require_review",
+                        "description": "Expert Review (Root Cause)"
+                    }
+                ]
+            },
+            "Refactor": {
+                "TaskSet": "RefactoringPlan",
+                "ExpertSet": "PlatformGrid",
+                "Description": "Refactoring Plan",
+                "Pipeline": [
+                    {
+                        "action": "generate_report",
+                        "template": "Impl_Refactor",
+                        "suffix": "Impl.Refactor",
+                        "description": "Generate Refactor Report"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{unit_test_cmd}",
+                        "description": "Unit Verify (Behavior Preserved)"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{integration_test_cmd}",
+                        "description": "Integration Verify (Safety)"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{complexity_cmd}",
+                        "description": "Complexity Check (Improvement)"
+                    },
+                    {
+                        "action": "require_review",
+                        "description": "Expert Review (Design)"
+                    }
+                ]
+            }
+        }
+    },
+    "TaskSets": {
+        "FeatureSpec": {
+            "checklist": [
+                "User Story Validation",
+                "Algorithmic Safety Check",
+                "Acceptance Criteria",
+                "Component Implementation"
+            ],
+            "command": null
+        },
+        "FixSpec": {
+            "checklist": [
+                "Reproduction Steps",
+                "Root Cause Analysis",
+                "Patch Implementation",
+                "Regression Test"
+            ],
+            "command": null
+        },
+        "RefactoringPlan": {
+            "checklist": [
+                "Legacy Code Identification",
+                "Refactoring Strategy",
+                "Regression Risk Analysis"
+            ],
+            "command": null
+        }
+    },
+    "definitions": {
+        "Implementation": {
+            "Feature": {
+                "name": "Feature Implementation",
+                "binding_ref": "Impl.Feature"
+            },
+            "Fix": {
+                "name": "Bug Fix",
+                "binding_ref": "Impl.Fix"
+            },
+            "Refactor": {
+                "name": "Refactoring",
+                "binding_ref": "Impl.Refactor"
+            }
+        }
+    }
+}

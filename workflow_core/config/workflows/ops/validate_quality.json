@@ -1,0 +1,24 @@
+{
+    "name": "Ops.Validate.Quality",
+    "description": "Run Static Quality Checks (Lint & Complexity)",
+    "steps": [
+        {
+            "id": "lint_check",
+            "type": "atom",
+            "ref": "Run_Command",
+            "args": {
+                "command": "${lint_cmd}",
+                "description": "Linting Check"
+            }
+        },
+        {
+            "id": "complexity_check",
+            "type": "atom",
+            "ref": "Run_Command",
+            "args": {
+                "command": "${complexity_cmd}",
+                "description": "Complexity Check"
+            }
+        }
+    ]
+}

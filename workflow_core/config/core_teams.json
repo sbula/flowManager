@@ -1,0 +1,49 @@
+{
+    "ExpertSets": {
+        "ProductCouncil": [
+            "Product Owner",
+            "Compliance Officer",
+            "Principal Architect",
+            "Head of Trading"
+        ],
+        "PlatformGrid": [
+            "Principal Architect",
+            "Security Engineer",
+            "Database Specialist",
+            "DevOps Engineer"
+        ],
+        "ExecutionCore": [
+            "Senior Backend Developer",
+            "SRE",
+            "FPGA Specialist",
+            "Quant Dev"
+        ],
+        "AlphaSquad": [
+            "Quantitative Trader",
+            "Data Scientist",
+            "ML Engineer",
+            "Risk Officer"
+        ],
+        "QualityAssurance": [
+            "QA Engineer",
+            "Test Automation Engineer",
+            "Chaos Engineer"
+        ],
+        "FullCodeReviewPanel": [
+            "Principal Architect",
+            "SRE",
+            "FPGA Specialist",
+            "Quant Dev",
+            "QA Engineer",
+            "Test Automation Engineer"
+        ],
+        "Core_Reviewers": [
+            "Product Owner",
+            "Senior Backend Developer",
+            "Quant Dev",
+            "SRE",
+            "Principal Architect",
+            "QA Engineer"
+        ]
+    }
+}

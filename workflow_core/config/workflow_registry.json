@@ -1,0 +1,557 @@
+{
+    "WorkflowBindings": {
+        "Plan": {
+            "Skeleton": {
+                "Description": "Skeleton Creation",
+                "TaskSet": "BootstrapSkeleton"
+            },
+            "DataFlow": {
+                "Description": "Data Flow Analysis",
+                "TaskSet": "BootstrapDataFlow"
+            },
+            "Context": {
+                "Description": "Context Injection",
+                "TaskSet": "BootstrapContext"
+            },
+            "Goal": {
+                "Description": "Goal & Scope Alignment",
+                "TaskSet": "Phase5Tasks",
+                "ExpertSet": "ProductCouncil"
+            },
+            "Arch": {
+                "Description": "Architecture & Roles",
+                "TaskSet": "FeasibilityCheck",
+                "ExpertSet": "PlatformGrid"
+            },
+            "Strategy": {
+                "Description": "Execution Strategy",
+                "TaskSet": "ExecutionStrategy",
+                "ExpertSet": "AlphaSquad"
+            },
+            "SignOff": {
+                "Description": "Phase Plan Sign-Off",
+                "TaskSet": "PhaseSignOff",
+                "ExpertSet": "ProductCouncil"
+            }
+        },
+        "Impl": {
+            "Feature": {
+                "TaskSet": "FeatureSpec",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Feature Implementation & Specification",
+                "Pipeline": [
+                    {
+                        "action": "generate_report",
+                        "template": "Impl_Feature",
+                        "suffix": "Impl.Feature",
+                        "description": "Generate Implementation Feature Report"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{lint_cmd}",
+                        "description": "Linting Check"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{complexity_cmd}",
+                        "description": "Complexity Check"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{unit_test_cmd}",
+                        "description": "Unit Tests"
+                    },
+                    {
+                        "action": "execute_cmd",
+                        "cmd": "{e2e_test_cmd}",
+                        "description": "E2E Tests"
+                    },
+                    {
+                        "action": "require_review",
+                        "description": "Expert Review Completeness"
+                    }
+                ]
+            },
+            "Fix": {
+                "TaskSet": "FixSpec",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Bug Fix & Regression Analysis",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{unit_test_cmd}"
+                    },
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{integration_test_cmd}"
+                    }
+                ]
+            },
+            "Refactor": {
+                "TaskSet": "RefactoringPlan",
+                "ExpertSet": "PlatformGrid",
+                "Description": "Refactoring Plan",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{unit_test_cmd}"
+                    }
+                ]
+            }
+        },
+        "Review": {
+            "Code": {
+                "TaskSet": "CodeQuality",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Code Quality & Pattern Review",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{lint_cmd}"
+                    },
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{complexity_cmd}"
+                    }
+                ]
+            },
+            "Security": {
+                "TaskSet": "SecOpsAudit",
+                "ExpertSet": "PlatformGrid",
+                "Description": "Security Audit & Access Control"
+            },
+            "Architecture": {
+                "TaskSet": "ArchCompliance",
+                "ExpertSet": "PlatformGrid",
+                "Description": "Architecture Compliance Review"
+            }
+        },
+        "Valid": {
+            "Quality": {
+                "TaskSet": "CodeQuality",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Validation of Code Standards & Complexity",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{lint_check_cmd}"
+                    },
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{complexity_check_cmd}"
+                    }
+                ]
+            },
+            "Unit": {
+                "TaskSet": "TestUnit",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Unit Test Verification",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{unit_test_cmd}"
+                    }
+                ]
+            },
+            "Integration": {
+                "TaskSet": "TestIntegration",
+                "ExpertSet": "QualityAssurance",
+                "Description": "Integration Test Verification",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{integration_test_cmd}"
+                    }
+                ]
+            },
+            "E2E": {
+                "TaskSet": "TestIntegration",
+                "ExpertSet": "QualityAssurance",
+                "Description": "End-to-End Verification",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{e2e_test_cmd}"
+                    }
+                ]
+            },
+            "Regression": {
+                "TaskSet": "TestIntegration",
+                "ExpertSet": "QualityAssurance",
+                "Description": "Full Regression Suite",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{unit_test_cmd}"
+                    },
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{integration_test_cmd}"
+                    }
+                ]
+            },
+            "Performance": {
+                "TaskSet": "LatencyVerification",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Performance & Load Testing",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{e2e_test_cmd}"
+                    }
+                ]
+            }
+        },
+        "Doc": {
+            "Update": {
+                "TaskSet": "Documentation",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Documentation Verification",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "test -f {service_path}/README.md"
+                    }
+                ]
+            }
+        },
+        "Gate": {
+            "Feature": {
+                "TaskSet": "FeatureGate",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Automated Validation & Feature Review",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{lint_check_cmd}"
+                    },
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{unit_test_cmd}"
+                    }
+                ]
+            },
+            "Fix": {
+                "TaskSet": "FixGate",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Bug Fix Verification",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{unit_test_cmd}"
+                    },
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{integration_test_cmd}"
+                    }
+                ]
+            },
+            "Refactor": {
+                "TaskSet": "RefactorGate",
+                "ExpertSet": "PlatformGrid",
+                "Description": "Refactoring Verification",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{unit_test_cmd}"
+                    },
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{complexity_check_cmd}"
+                    }
+                ]
+            },
+            "System": {
+                "TaskSet": "SystemGate",
+                "ExpertSet": "QualityAssurance",
+                "Description": "System-Wide Verification",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{e2e_test_cmd}"
+                    }
+                ]
+            }
+        },
+        "Git": {
+            "Branch": {
+                "TaskSet": "GitBranchOps",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Git Branch Creation",
+                "steps": [
+                    {
+                        "type": "manual_check",
+                        "name": "Verify Branch State & Protection Rules"
+                    }
+                ]
+            },
+            "Merge": {
+                "TaskSet": "GitMergeOps",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Git Merge & Cleanup",
+                "steps": [
+                    {
+                        "type": "manual_check",
+                        "name": "Squash & Merge to Master"
+                    },
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{unit_test_cmd}"
+                    },
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{integration_test_cmd}"
+                    },
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{e2e_test_cmd}"
+                    },
+                    {
+                        "type": "manual_check",
+                        "name": "Delete Feature Branch"
+                    }
+                ]
+            }
+        }
+    },
+    "Snippets": {
+        "General": [
+            {
+                "Title": "Protocol Integrity",
+                "Ref": "handbook/phase_initialization_protocol.md (Rules 1 & 2)",
+                "Text": "1. Fresh Eyes: You MUST reread status.md before any write operation.\n2. Service Lock: You are BLIND to other services. Focus ONLY on the active service."
+            },
+            {
+                "Title": "The Shadow Plan",
+                "Ref": "handbook/status_protocol.md (Rule 3)",
+                "Text": "All planning drafts must occur in 'planning_scratchpad.md'.\nNEVER type new tasks directly into status.md without approval."
+            }
+        ],
+        "PhasePlanning": [
+            {
+                "Title": "Bootstrap Sequence",
+                "Ref": "handbook/phase_initialization_protocol.md",
+                "Text": "Step 0: Context Injection (Draft context_brief.md)\nStep 1: Skeleton Creation (Append Headers)\nStep 2: Data Flow Analysis (Draft data_flow_map.md)\nStep 3: Serialized Planning (Service by Service)"
+            }
+        ],
+        "Plan": {
+            "Context": [
+                {
+                    "Title": "Context Injection (Iterative)",
+                    "Ref": "handbook/phase_initialization_protocol.md (Step 0)",
+                    "Text": "DO NOT just write the file. Initiating Q&A Mode.\nAsk clarifying questions to build 'design/phases/[phase]/context_brief.md' incrementally.\nOnly finalize when User approves the full scope."
+                }
+            ],
+            "Skeleton": [
+                {
+                    "Title": "Skeleton Creation",
+                    "Ref": "handbook/phase_initialization_protocol.md (Step 1)",
+                    "Text": "Read 'project_map.md'. Output ONE Header per Service into status.md.\nGoal: Lock the Scope."
+                }
+            ],
+            "DataFlow": [
+                {
+                    "Title": "Data Flow Analysis",
+                    "Ref": "handbook/phase_initialization_protocol.md (Step 2)",
+                    "Text": "Map Inputs/Outputs between the Headers (Nodes).\nDraft 'design/phases/[phase]/data_flow_map.md'."
+                }
+            ]
+        },
+        "Git": {
+            "Branch": [
+                {
+                    "Title": "Git Lifecycle Operation",
+                    "Ref": "handbook/protocols/status/execution_rules.md",
+                    "Text": "1. CHECKOUT the specific feature branch.\n2. VERIFY you are not on Master/Main.\n3. NO TDD required for this step (Infrastructure/Setup only)."
+                }
+            ],
+            "Merge": [
+                {
+                    "Title": "Git Merge Operation",
+                    "Ref": "handbook/protocols/status/execution_rules.md",
+                    "Text": "1. Squash & Merge to Master.\n2. Verify all tests pass (Automated).\n3. Delete local and remote feature branch."
+                }
+            ]
+        }
+    },
+    "definitions": {
+        "QualityGate": {
+            "Q1": {
+                "name": "Design Verification",
+                "steps": [
+                    {
+                        "type": "manual_check",
+                        "name": "Edge Case Analysis"
+                    }
+                ]
+            },
+            "Q2": {
+                "name": "Static Quality",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{lint_cmd}"
+                    }
+                ]
+            },
+            "Q3": {
+                "name": "Functional Verification",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{unit_test_cmd}"
+                    }
+                ]
+            },
+            "Q4": {
+                "name": "System Verification",
+                "steps": [
+                    {
+                        "type": "verify_cmd",
+                        "cmd": "{e2e_test_cmd}"
+                    }
+                ]
+            }
+        },
+        "PhasePlanning": {
+            "Goal": {
+                "name": "Goal & Scope Alignment",
+                "binding_ref": "Plan.Goal",
+                "steps": [
+                    {
+                        "type": "approve",
+                        "binding_ref": "Plan.Goal",
+                        "description": "Define Phase Goal and Success Metrics"
+                    }
+                ]
+            },
+            "Arch": {
+                "name": "Architecture & Roles",
+                "binding_ref": "Plan.Arch",
+                "steps": [
+                    {
+                        "type": "approve",
+                        "binding_ref": "Plan.Arch",
+                        "description": "Define Architecture and Feasibility"
+                    }
+                ]
+            },
+            "Strategy": {
+                "name": "Execution Strategy",
+                "binding_ref": "Plan.Strategy",
+                "steps": [
+                    {
+                        "type": "approve",
+                        "binding_ref": "Plan.Strategy",
+                        "description": "Define Execution Strategy"
+                    }
+                ]
+            }
+        },
+        "Implementation": {
+            "Feature": {
+                "name": "Feature Implementation",
+                "binding_ref": "Impl.Feature"
+            },
+            "Fix": {
+                "name": "Bug Fix",
+                "binding_ref": "Impl.Fix"
+            },
+            "Refactor": {
+                "name": "Refactoring",
+                "binding_ref": "Impl.Refactor"
+            }
+        },
+        "Review": {
+            "Code": {
+                "name": "Code Review",
+                "binding_ref": "Review.Code"
+            },
+            "Security": {
+                "name": "Security Review",
+                "binding_ref": "Review.Security"
+            },
+            "Architecture": {
+                "name": "Architecture Review",
+                "binding_ref": "Review.Architecture"
+            }
+        },
+        "Validation": {
+            "Quality": {
+                "name": "Quality Checks",
+                "binding_ref": "Valid.Quality"
+            },
+            "Unit": {
+                "name": "Unit Tests",
+                "binding_ref": "Valid.Unit"
+            },
+            "Integration": {
+                "name": "Integration Tests",
+                "binding_ref": "Valid.Integration"
+            },
+            "E2E": {
+                "name": "E2E Tests",
+                "binding_ref": "Valid.E2E"
+            },
+            "Regression": {
+                "name": "Regression Tests",
+                "binding_ref": "Valid.Regression"
+            },
+            "Performance": {
+                "name": "Performance Tests",
+                "binding_ref": "Valid.Performance"
+            }
+        },
+        "Git": {
+            "Branch": {
+                "name": "Branch Creation",
+                "binding_ref": "Git.Branch"
+            },
+            "Merge": {
+                "name": "Merge & Cleanup",
+                "binding_ref": "Git.Merge"
+            }
+        },
+        "Gate": {
+            "Feature": {
+                "name": "Feature Gate",
+                "binding_ref": "Gate.Feature"
+            },
+            "Fix": {
+                "name": "Fix Gate",
+                "binding_ref": "Gate.Fix"
+            },
+            "Refactor": {
+                "name": "Refactor Gate",
+                "binding_ref": "Gate.Refactor"
+            },
+            "System": {
+                "name": "System Gate",
+                "binding_ref": "Gate.System"
+            }
+        }
+    },
+    "contexts": {
+        "python": {
+            "lint_cmd": "bash workflow_core/validate.sh {service_path} --check lint",
+            "complexity_cmd": "bash workflow_core/validate.sh {service_path} --check complexity",
+            "unit_test_cmd": "bash workflow_core/validate.sh {service_path} --check unit",
+            "integration_test_cmd": "bash workflow_core/validate.sh {service_path} --check integration",
+            "e2e_test_cmd": "bash workflow_core/validate.sh {service_path} --check e2e"
+        },
+        "kotlin": {
+            "lint_cmd": "bash workflow_core/validate.sh {service_path} --check lint",
+            "complexity_cmd": "bash workflow_core/validate.sh {service_path} --check complexity",
+            "unit_test_cmd": "bash workflow_core/validate.sh {service_path} --check unit",
+            "integration_test_cmd": "bash workflow_core/validate.sh {service_path} --check integration",
+            "e2e_test_cmd": "bash workflow_core/validate.sh {service_path} --check e2e"
+        },
+        "rust": {
+            "lint_cmd": "bash workflow_core/validate.sh {service_path} --check lint",
+            "complexity_cmd": "bash workflow_core/validate.sh {service_path} --check complexity",
+            "unit_test_cmd": "bash workflow_core/validate.sh {service_path} --check unit",
+            "integration_test_cmd": "bash workflow_core/validate.sh {service_path} --check integration",
+            "e2e_test_cmd": "bash workflow_core/validate.sh {service_path} --check e2e"
+        }
+    }
+}

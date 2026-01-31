@@ -1,0 +1,96 @@
+{
+    "_comment": "Rules for resolving Author Roles and Council Sets based on Context (ServiceType and Tags). Priority: Tags > ServiceType > Default.",
+    "Rules": {
+        "AuthorRole": [
+            {
+                "Tags": [
+                    "Quant",
+                    "Algo"
+                ],
+                "Result": "Quant Dev"
+            },
+            {
+                "Tags": [
+                    "ML",
+                    "AI"
+                ],
+                "Result": "ML Engineer"
+            },
+            {
+                "Tags": [
+                    "FPGA",
+                    "Hardware"
+                ],
+                "Result": "FPGA Specialist"
+            },
+            {
+                "Tags": [
+                    "Security",
+                    "Auth"
+                ],
+                "Result": "Security"
+            },
+            {
+                "Tags": [
+                    "DB",
+                    "SQL"
+                ],
+                "Result": "Database Specialist"
+            },
+            {
+                "ServiceType": "Risk",
+                "Result": "Quant Dev"
+            },
+            {
+                "ServiceType": "Core",
+                "Result": "SRE"
+            },
+            {
+                "ServiceType": "Library",
+                "Result": "Senior Backend Developer"
+            },
+            {
+                "Default": true,
+                "Result": "Senior Backend Developer"
+            }
+        ],
+        "CouncilSet": [
+            {
+                "ServiceType": "Signal",
+                "Result": "AlphaSquad"
+            },
+            {
+                "ServiceType": "Risk",
+                "Result": "AlphaSquad"
+            },
+            {
+                "ServiceType": "Engine",
+                "Result": "ExecutionCore"
+            },
+            {
+                "ServiceType": "Core",
+                "Result": "PlatformGrid"
+            },
+            {
+                "ServiceType": "Platform",
+                "Result": "PlatformGrid"
+            },
+            {
+                "Tags": [
+                    "ML"
+                ],
+                "Result": "AlphaSquad"
+            },
+            {
+                "Tags": [
+                    "FPGA"
+                ],
+                "Result": "ExecutionCore"
+            },
+            {
+                "Default": true,
+                "Result": "Core_Reviewers"
+            }
+        ]
+    }
+}

@@ -1,0 +1,89 @@
+{
+    "name": "Phase.Planning",
+    "version": "8.5",
+    "description": "Standard Planning Phase (V8.5 Sequential Scribing)",
+    "steps": [
+        {
+            "id": "parse_manifest",
+            "type": "atom",
+            "ref": "Manifest_Parse",
+            "args": {
+                "target_file": "${status_file}"
+            },
+            "export": {
+                "phase": "phase",
+                "service_name": "service_name",
+                "feature_name": "feature_name",
+                "level": "level",
+                "active_task": "active_task"
+            },
+            "description": "Parse Status Manifest and Extract Context"
+        },
+        {
+            "id": "init_plan_header",
+            "type": "atom",
+            "ref": "render_template",
+            "args": {
+                "template_name": "Implementation_Header",
+                "target_file": "${artifact_dir}/${task_id_snake}_Planning.md"
+            },
+            "instructions": "INITIALIZATION: Create the Implementation Plan Header.\nThis file starts EMPTY (Metadata only).",
+            "description": "Initialize Plan Header"
+        },
+        {
+            "id": "expert_council_draft",
+            "type": "atom",
+            "ref": "Expert_Sequencer",
+            "args": {
+                "target_file": "${artifact_dir}/${task_id_snake}_Planning.md",
+                "expert_set": "ExpertCouncil",
+                "mode": "draft",
+                "prompt_template": "${flow_config.root}/workflow_core/config/prompts/planning/research.j2"
+            },
+            "instructions": "COUNCIL DRAFTING: The Expert Scribe will now iterate through the Council.\nIt will PROMPT the Agent for each expert and APPEND the analysis directly to the plan.",
+            "description": "Execute Expert Council Check"
+        },
+        {
+            "id": "wait_for_draft",
+            "type": "atom",
+            "ref": "Wait_For_Manual_Approval",
+            "args": {
+                "target_file": "${artifact_dir}/${task_id_snake}_Planning.md",
+                "marker": "Status: **READY_FOR_REVIEW**"
+            },
+            "instructions": "Drafting Phase Complete. Review the synthesized plan. Update content if needed.\nWhen ready, change 'Status: **DRAFT**' to 'Status: **READY_FOR_REVIEW**'.",
+            "description": "WaitFor: Plan Draft Completion"
+        },
+        {
+            "id": "validate_content",
+            "type": "atom",
+            "ref": "Run_Command",
+            "args": {
+                "command": "python -c \"import sys, pathlib; c=pathlib.Path(sys.argv[1]).read_text('utf-8'); bad=[x for x in ['[Brief description', '[File 1]', '[Change]'] if x in c]; sys.exit(f'Blocking: Placeholders found: {bad}' if bad else 0)\" \"${artifact_dir}/${task_id_snake}_Planning.md\"",
+                "description": "Content Validation (Check for Placeholders)"
+            },
+            "description": "Validate Plan Content"
+        },
+        {
+            "id": "review_plan",
+            "type": "workflow",
+            "ref": "Review.Standard",
+            "args": {
+                "review_file": "${artifact_dir}/${task_id_snake}_Planning.md",
+                "expert_set": "Core_Reviewers"
+            },
+            "description": "Expert Review of Plan"
+        },
+        {
+            "id": "approve_plan",
+            "type": "atom",
+            "ref": "Wait_For_Manual_Approval",
+            "args": {
+                "target_file": "${artifact_dir}/${task_id_snake}_Planning.md",
+                "marker": "APPROVED"
+            },
+            "instructions": "Wait for Final Plan Approval (Mark [x] APPROVED in plan).",
+            "description": "Final Plan Approval"
+        }
+    ]
+}

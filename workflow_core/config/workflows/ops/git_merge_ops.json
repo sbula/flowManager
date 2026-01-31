@@ -1,0 +1,46 @@
+{
+    "name": "Ops.Git.Merge",
+    "description": "Git Merge & Cleanup Sequence",
+    "steps": [
+        {
+            "id": "manual_merge",
+            "type": "atom",
+            "ref": "Wait_For_Manual_Approval",
+            "args": {
+                "message": "ACTION REQUIRED: Squash & Merge Feature Branch to Master manually.",
+                "marker": "Status: **MERGED**",
+                "target_file": "${status_file}"
+            },
+            "instructions": "Please perform the Squash & Merge of the feature branch into master.\nUpdate the status file for this task to 'Status: **MERGED**' (or verify completion).",
+            "description": "Manual Merge Check"
+        },
+        {
+            "id": "verify_unit",
+            "type": "workflow",
+            "ref": "Ops.Validate.Unit",
+            "description": "Post-Merge Unit Test"
+        },
+        {
+            "id": "verify_integration",
+            "type": "workflow",
+            "ref": "Ops.Validate.Integration",
+            "description": "Post-Merge Integration Test"
+        },
+        {
+            "id": "verify_e2e",
+            "type": "workflow",
+            "ref": "Ops.Validate.E2E",
+            "description": "Post-Merge E2E Test"
+        },
+        {
+            "id": "delete_branch",
+            "type": "atom",
+            "ref": "Run_Command",
+            "args": {
+                "command": "git branch -d ${feature_branch} && git push origin --delete ${feature_branch}",
+                "description": "Delete Feature Branch"
+            },
+            "description": "Cleanup Feature Branch"
+        }
+    ]
+}

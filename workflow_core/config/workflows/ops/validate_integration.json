@@ -1,0 +1,15 @@
+{
+    "name": "Ops.Validate.Integration",
+    "description": "Run Integration Tests",
+    "steps": [
+        {
+            "id": "integration_test",
+            "type": "atom",
+            "ref": "Run_Command",
+            "args": {
+                "command": "${integration_test_cmd}",
+                "description": "Execute Integration Tests"
+            }
+        }
+    ]
+}

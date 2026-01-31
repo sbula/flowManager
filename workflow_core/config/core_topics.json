@@ -1,0 +1,250 @@
+{
+    "TopicResponsibilities": {
+        "Acceptance Criteria": [
+            "Senior Backend Developer"
+        ],
+        "Algorithmic Safety Check": [
+            "Risk Officer",
+            "Quant Dev"
+        ],
+        "Architecture Decisions": [
+            "Principal Architect",
+            "DevOps Engineer",
+            "Senior Backend Developer",
+            "Database Specialist"
+        ],
+        "Authentication Check": [
+            "Security Engineer"
+        ],
+        "Authorization Matrix": [
+            "Security Engineer"
+        ],
+        "Comment Density": [
+            "Senior Backend Developer"
+        ],
+        "Component Diagram": [
+            "Principal Architect",
+            "DevOps Engineer",
+            "Senior Backend Developer",
+            "Database Specialist"
+        ],
+        "Capacity Planning (Order/Sec)": [
+            "DevOps Engineer"
+        ],
+        "Component Implementation": [
+            "Senior Backend Developer"
+        ],
+        "Contract Tests": [
+            "QA Engineer"
+        ],
+        "Coverage Report (>80%)": [
+            "Test Automation Engineer"
+        ],
+        "Create Feature Branch": "Senior Backend Developer",
+        "Cyclomatic Complexity": [
+            "Senior Backend Developer"
+        ],
+        "Data Requirements": [
+            "Principal Architect",
+            "Product Owner"
+        ],
+        "Database State": [
+            "QA Engineer"
+        ],
+        "Delete Remote Branch": "Senior Backend Developer",
+        "Dependency Graph": [
+            "Principal Architect"
+        ],
+        "Dependency Matrix": [
+            "Principal Architect",
+            "DevOps Engineer",
+            "Senior Backend Developer",
+            "Database Specialist"
+        ],
+        "Edge Case Verification": [
+            "Test Automation Engineer"
+        ],
+        "Failover Strategy": [
+            "SRE",
+            "Senior Backend Developer"
+        ],
+        "Garbage Collection Profile": [
+            "Senior Backend Developer"
+        ],
+        "Goal Definition": [
+            "Product Owner",
+            "Head of Trading"
+        ],
+        "Infrastructure Requirements": [
+            "Principal Architect",
+            "DevOps Engineer",
+            "Senior Backend Developer",
+            "Database Specialist"
+        ],
+        "Input Sanitization": [
+            "Security Engineer"
+        ],
+        "Interface Compatibility": [
+            "Principal Architect"
+        ],
+        "Latency Budgeting (p99/p99.9)": [
+            "SRE",
+            "Principal Architect"
+        ],
+        "Jitter Analysis": [
+            "SRE"
+        ],
+        "Legacy Code Identification": [
+            "Principal Architect"
+        ],
+        "Linting Check": [
+            "Senior Backend Developer"
+        ],
+        "Mock Usage": [
+            "Test Automation Engineer"
+        ],
+        "Model Logic": [
+            "Principal Architect",
+            "Product Owner"
+        ],
+        "Naming Conventions": [
+            "Senior Backend Developer"
+        ],
+        "Non-Functional Requirements": [
+            "Product Owner",
+            "Principal Architect"
+        ],
+        "Patch Implementation": [
+            "Senior Backend Developer"
+        ],
+        "Pattern Adherence": [
+            "Principal Architect"
+        ],
+        "Penetration Test Report": [
+            "Security Engineer"
+        ],
+        "Plan Summary": [
+            "Principal Architect",
+            "Product Owner"
+        ],
+        "Push Branch": "Senior Backend Developer",
+        "Refactoring Strategy": [
+            "Principal Architect"
+        ],
+        "Regression Risk Analysis": [
+            "Principal Architect"
+        ],
+        "Regression Test": [
+            "Senior Backend Developer"
+        ],
+        "Regulatory Compliance Check": [
+            "Compliance Officer",
+            "Security Engineer"
+        ],
+        "Regulatory Data Audit": [
+            "Compliance Officer"
+        ],
+        "Reproduction Steps": [
+            "Senior Backend Developer"
+        ],
+        "Research Findings": [
+            "Principal Architect",
+            "DevOps Engineer",
+            "Senior Backend Developer",
+            "Database Specialist"
+        ],
+        "Resource Usage": [
+            "QA Engineer"
+        ],
+        "Risk Parameters": [
+            "Principal Architect",
+            "Product Owner"
+        ],
+        "Root Cause Analysis": [
+            "Senior Backend Developer"
+        ],
+        "Scope Boundaries": [
+            "Product Owner",
+            "Principal Architect"
+        ],
+        "Secret Management": [
+            "Security Engineer"
+        ],
+        "Service Connectivity": [
+            "QA Engineer"
+        ],
+        "Service Interaction Map": [
+            "Principal Architect",
+            "DevOps Engineer",
+            "Senior Backend Developer",
+            "Database Specialist"
+        ],
+        "Squash & Merge": "Senior Backend Developer",
+        "Stakeholder Concerns": [
+            "Principal Architect",
+            "Product Owner"
+        ],
+        "Sub-Task Breakdown": [
+            "Principal Architect",
+            "Product Owner"
+        ],
+        "Success Metrics": "Product Owner",
+        "Trigger Definitions": [
+            "Principal Architect",
+            "DevOps Engineer",
+            "Senior Backend Developer",
+            "Database Specialist"
+        ],
+        "Unanimous Approval": [
+            "Principal Architect",
+            "Product Owner"
+        ],
+        "User Story Validation": [
+            "Senior Backend Developer"
+        ],
+        "User Workflows": [
+            "Principal Architect",
+            "Product Owner"
+        ],
+        "Verify CI Status": "Senior Backend Developer",
+        "Create Context Brief": "Principal Architect",
+        "Define Service Skeleton": "Principal Architect",
+        "Map Data Flow": "Principal Architect",
+        "Verify Master Status": "Senior Backend Developer",
+        "Vulnerability Scan": [
+            "Security Engineer"
+        ],
+        "Wire-to-Wire Latency (Microseconds)": [
+            "SRE"
+        ]
+    },
+    "Definitions": {
+        "Goal Definition": "Clear statement of what this phase achieves (Vision).",
+        "Success Metrics": "Quantifiable KPIs and success criteria.",
+        "Scope Boundaries": "What is In-Scope and Out-of-Scope.",
+        "Research Findings": "Summary of research into technologies or patterns.",
+        "Infrastructure Requirements": "Compute, Storage, and Network needs.",
+        "Component Diagram": "Mermaid C4 diagram of the proposed components.",
+        "User Story Validation": "Ensure story meets INVEST criteria.",
+        "Acceptance Criteria": "Gherkin-style scenarios defining completion.",
+        "Linting Check": "Automated style compliance (pylint/clippy).",
+        "Cyclomatic Complexity": "Ensure no function exceeds 10 branches.",
+        "Vulnerability Scan": "Automated security scan results (bandit/cargo-audit).",
+        "Coverage Report (>80%)": "Line and branch coverage metrics.",
+        "Sub-Task Breakdown": "Granular list of sub-tasks (e.g., 1.2.1.1) for execution.",
+        "Non-Functional Requirements": "Performance, Scalability, Security, and Reliability constraints.",
+        "Service Interaction Map": "Sequence diagram showing interactions between services.",
+        "Trigger Definitions": "Definition of what events/conditions trigger service actions.",
+        "Dependency Matrix": "Table of upstream/downstream dependencies for each service.",
+        "Regulatory Compliance Check": "Validation against MiFID II / SEC requirements.",
+        "Latency Budgeting (p99/p99.9)": "Strict latency budget allocation per component (Microseconds).",
+        "Failover Strategy": "Documented strategy for H/A and disaster recovery.",
+        "Algorithmic Safety Check": "Verification of Fat Finger limits and Kill Switches.",
+        "Wire-to-Wire Latency (Microseconds)": "Measurement of full round-trip time under load.",
+        "Garbage Collection Profile": "Analysis of GC pauses and memory allocation rates.",
+        "Jitter Analysis": "Measurement of latency variance/stability.",
+        "Capacity Planning (Order/Sec)": "Max throughput validation against projected load.",
+        "Penetration Test Report": "Results from external or automated pen-testing.",
+        "Regulatory Data Audit": "Verification of audit trails and data retention policies."
+    }
+}

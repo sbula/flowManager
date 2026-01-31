@@ -1,0 +1,41 @@
+{
+    "WorkflowBindings": {
+        "Plan": {
+            "Skeleton": {
+                "Description": "Skeleton Creation",
+                "TaskSet": "BootstrapSkeleton",
+                "ExpertSet": "ProductCouncil"
+            },
+            "DataFlow": {
+                "Description": "Data Flow Analysis",
+                "TaskSet": "BootstrapDataFlow",
+                "ExpertSet": "ProductCouncil"
+            },
+            "Context": {
+                "Description": "Context Injection",
+                "TaskSet": "BootstrapContext",
+                "ExpertSet": "ProductCouncil"
+            }
+        }
+    },
+    "TaskSets": {
+        "BootstrapSkeleton": {
+            "checklist": [
+                "Define Service Skeleton"
+            ],
+            "command": null
+        },
+        "BootstrapDataFlow": {
+            "checklist": [
+                "Map Data Flow"
+            ],
+            "command": null
+        },
+        "BootstrapContext": {
+            "checklist": [
+                "Create Context Brief"
+            ],
+            "command": null
+        }
+    }
+}

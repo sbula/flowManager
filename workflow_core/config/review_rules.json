@@ -1,0 +1,99 @@
+{
+    "ReviewRules": [
+        {
+            "trigger": "topic",
+            "match": [
+                "Acceptance Criteria",
+                "User Story Validation"
+            ],
+            "inject": [
+                "QA Engineer"
+            ],
+            "reason": "Testability Check"
+        },
+        {
+            "trigger": "topic",
+            "match": [
+                "Latency Budgeting",
+                "Failover Strategy",
+                "Wire-to-Wire Latency"
+            ],
+            "inject": [
+                "SRE"
+            ],
+            "reason": "Latency/Reliability Check"
+        },
+        {
+            "trigger": "context",
+            "match": [
+                "database",
+                "postgres",
+                "sql",
+                "liquigbase",
+                "schema"
+            ],
+            "inject": [
+                "Database Specialist"
+            ],
+            "reason": "Data Integrity Check"
+        },
+        {
+            "trigger": "phase",
+            "match": [
+                "Planning",
+                "Design",
+                "Plan"
+            ],
+            "inject": [
+                "Senior Backend Developer"
+            ],
+            "reason": "Implementation Feasibility Check"
+        },
+        {
+            "trigger": "topic",
+            "match": [
+                "Test Report",
+                "Integration Test",
+                "E2E",
+                "Regression Test"
+            ],
+            "inject": [
+                "Product Owner"
+            ],
+            "reason": "User Value Verification"
+        },
+        {
+            "trigger": "topic",
+            "match": [
+                "Algorithmic Safety",
+                "Risk Parameters"
+            ],
+            "inject": [
+                "Head of Trading"
+            ],
+            "reason": "Financial Risk Check"
+        },
+        {
+            "trigger": "context",
+            "match": [
+                "rust",
+                "unsafe"
+            ],
+            "inject": [
+                "Senior Backend Developer"
+            ],
+            "reason": "Memory Safety Expert"
+        },
+        {
+            "trigger": "topic",
+            "match": [
+                "Regulatory Compliance Check",
+                "Regulatory Data Audit"
+            ],
+            "inject": [
+                "Compliance Officer"
+            ],
+            "reason": "Regulatory Check"
+        }
+    ]
+}

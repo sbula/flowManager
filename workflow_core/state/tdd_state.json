@@ -1,0 +1,12 @@
+{
+  "trading-signal-service": {
+    "timestamp": 1765106011.2934666,
+    "total_tests": 14,
+    "passing_tests": 14
+  },
+  "trading-signal-service:integration": {
+    "timestamp": 1765128156.4076324,
+    "total_tests": 7,
+    "passing_tests": 7
+  }
+}

@@ -1,0 +1,45 @@
+{
+    "name": "Review.Universal",
+    "version": "1.0",
+    "description": "Universal Review Engine (Protocol V8) - Unified Analysis, Plan, and Code Review",
+    "steps": [
+        {
+            "id": "1",
+            "name": "Resolve Team",
+            "type": "atom",
+            "ref": "Team_Builder",
+            "args": {
+                "tags": "${tags}",
+                "context": "${review_context}"
+            },
+            "export": {
+                "team": "expert_team"
+            }
+        },
+        {
+            "id": "2",
+            "name": "Resolve Topics",
+            "type": "atom",
+            "ref": "Topic_Builder",
+            "args": {
+                "team": "${expert_team}",
+                "context": "${review_context}"
+            },
+            "export": {
+                "assignments": "expert_assignments"
+            }
+        },
+        {
+            "id": "3",
+            "name": "Execute Review",
+            "type": "atom",
+            "ref": "Expert_Sequencer",
+            "args": {
+                "assignments": "${expert_assignments}",
+                "object": "${review_object}",
+                "context": "${review_context}"
+            },
+            "description": "Experts execute review with mandatory topic checklist"
+        }
+    ]
+}

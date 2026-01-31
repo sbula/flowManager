@@ -1,0 +1,37 @@
+from typing import Dict, Any
+
+def run(args: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Updates the context/state with a key-value pair.
+    Args:
+        args: {"key": "...", "value": "..."}
+        context: The workflow context
+    """
+    key = args.get("key")
+    value = args.get("value")
+    
+    if not key:
+        return {"status": "FAILED", "error": "Missing 'key' argument"}
+        
+    # Is this 'Update State' meant to update the *context* passed to future steps?
+    # Context in Engine is state.context_cache.
+    # The Executor passes `context` (which is state.context_cache).
+    # Since dicts are mutable, modifying it here DOES update the state.
+    # BUT, the Engine might not propagate side-effects if it passes a copy?
+    # Engine.py line 199: output = self.executor.execute_step(..., state.context_cache)
+    # It passes the object reference.
+    
+    # However, logic in engine usually relies on `export` to update context.
+    # Step definition:
+    # "export": {"output_key": "context_key"}
+    
+    # If this Atom is purely side-effect based, it might directly modify context?
+    # "Update_State" implies direct modification.
+    
+    context[key] = value
+    
+    return {
+        "status": "COMPLETED",
+        "updated_key": key,
+        "new_value": value
+    }

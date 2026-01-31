@@ -1,0 +1,44 @@
+{
+    "name": "Init.Feature",
+    "version": "2.0",
+    "description": "Initialize Feature Status from Project Map using Extractor",
+    "steps": [
+        {
+            "id": "extract_info",
+            "type": "atom",
+            "ref": "Run_Command",
+            "args": {
+                "command": "python workflow_core/engine/atoms/manifest_extractor.py \"${flow_config.paths.roadmap}\" \"${feature_seq}\"",
+                "description": "Extract Feature Info from Project Map"
+            },
+            "export": {
+                "feature_name": "feature_name",
+                "feature_title": "feature_title",
+                "feature_goal": "feature_goal",
+                "feature_context": "feature_context",
+                "complexity": "complexity"
+            },
+            "description": "Read Project Map"
+        },
+        {
+            "id": "create_status",
+            "type": "atom",
+            "ref": "render_template",
+            "args": {
+                "template_path": "${flow_config.templates.feature_init}",
+                "target_file": "${flow_config.paths.features}/${feature_seq}_${feature_name}/status.md"
+            },
+            "instructions": "Generating Standard Status File from Template.",
+            "description": "Render Status File"
+        },
+        {
+            "id": "notify_done",
+            "type": "atom",
+            "ref": "Run_Command",
+            "args": {
+                "command": "echo 'Feature Initialized at ${flow_config.paths.features}/${feature_seq}_${feature_name}/status.md'",
+                "description": "Notify User"
+            }
+        }
+    ]
+}

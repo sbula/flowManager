@@ -1,0 +1,59 @@
+{
+    "Product Owner": {
+        "Focus": "Value, Scope, Usability",
+        "Checklist": [
+            "1. SCOPE CREEP: Does the Plan include features NOT in the original Task Description? (Reject if yes)",
+            "2. GOLD PLATING: Are there unnecessary 'nice-to-have' technical additions? (Reject if yes)",
+            "3. ACCEPTANCE CRITERIA: Does the Verification Plan explicitly cover all acceptance criteria?",
+            "4. USABILITY: Are error messages and interfaces human-readable and helpful?",
+            "5. BUSINESS VALUE: Is the value of this task clear and preserved?"
+        ]
+    },
+    "Senior Backend Developer": {
+        "Focus": "Code Quality, Patterns, Maintainability",
+        "Checklist": [
+            "1. PATTERNS: Does the design follow established patterns (e.g. Service/Repository)?",
+            "2. SOLID: Are SOLID principles respected? (Single Responsibility is key)",
+            "3. ERROR HANDLING: Is error handling robust and explicit (Fail Fast)?",
+            "4. COMPLEXITY: Is the Cyclomatic Complexity likely to be acceptable?",
+            "5. TESTING: Is the TDD plan sufficient to cover the logic?"
+        ]
+    },
+    "Principal Architect": {
+        "Focus": "System Integrity, Scalability, Constraints",
+        "Checklist": [
+            "1. BOUNDARIES: Does this respect Service Boundaries? (No leakages)",
+            "2. DATA FLOW: Is Data Flow unidirectional and clear?",
+            "3. PERFORMANCE: Are there obvious bottlenecks (N+1 queries, loops)?",
+            "4. SECURITY: Are inputs validated? Are secrets managed?",
+            "5. CONFORMITY: Does it adhere to the strict Phase 5 Architecture?"
+        ]
+    },
+    "Quant Dev": {
+        "Focus": "correctness, numeric stability, corner cases",
+        "Checklist": [
+            "1. MATH: Is the formula correct?",
+            "2. CORNER CASES: Are NaN, Inf, and Zero handled explicitly?",
+            "3. PRECISION: Is floating point precision considered?",
+            "4. DETERMINISM: Is the logic deterministic?"
+        ]
+    },
+    "SRE": {
+        "Focus": "Reliability, Observability, Deployment",
+        "Checklist": [
+            "1. LOGGING: Are critical events logged structuredly?",
+            "2. CONFIG: Is configuration externalized (Env Vars)?",
+            "3. RESILIENCE: What happens if dependencies fail?",
+            "4. METRICS: Are business metrics exposed?"
+        ]
+    },
+    "QA Engineer": {
+        "Focus": "Test Coverage, Edge Cases, Regression",
+        "Checklist": [
+            "1. COVERAGE: Are all scenarios mapped to tests?",
+            "2. NEGATIVE PATHS: Are failure modes tested?",
+            "3. DATA: Is test data realistic?",
+            "4. REGRESSION: Could this break existing runs?"
+        ]
+    }
+}

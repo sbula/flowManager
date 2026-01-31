@@ -1,0 +1,26 @@
+{
+    "name": "Phase.Execution",
+    "description": "Standard Execution Phase Entrypoint",
+    "steps": [
+        {
+            "id": "1",
+            "name": "Parse Manifest",
+            "type": "atom",
+            "ref": "Manifest_Parse",
+            "args": {
+                "target_file": "${status_file}"
+            },
+            "export": {
+                "feature": "feature",
+                "active_task": "active_task"
+            }
+        },
+        {
+            "id": "2",
+            "name": "Run Feature Implementation",
+            "type": "workflow",
+            "ref": "Impl.Feature",
+            "ref": "Impl.Feature"
+        }
+    ]
+}

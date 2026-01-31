@@ -1,0 +1,167 @@
+{
+    "_comment": "This map defines the BINDING names for status.md. Task headers must contain these exact keys.",
+    "Entities": {
+        "Kafka Infrastructure": {
+            "Type": "Infrastructure",
+            "DesignRoot": "design/infrastructure",
+            "RequiredDocs": [
+                "design/infrastructure/kafka.md",
+                "design/architecture/event_catalog.md"
+            ]
+        },
+        "Kubernetes Infrastructure": {
+            "Type": "Infrastructure",
+            "DesignRoot": "design/infrastructure",
+            "RequiredDocs": [
+                "design/infrastructure/kubernetes.md",
+                "design/infrastructure/gcp_cost_estimation.md"
+            ]
+        },
+        "Terraform Infrastructure": {
+            "Type": "Infrastructure",
+            "DesignRoot": "design/infrastructure",
+            "RequiredDocs": [
+                "design/infrastructure/terraform.md"
+            ]
+        },
+        "Observability Infrastructure": {
+            "Type": "Infrastructure",
+            "DesignRoot": "design/infrastructure",
+            "RequiredDocs": [
+                "design/infrastructure/observability.md"
+            ]
+        },
+        "API Gateway": {
+            "Type": "Service",
+            "DesignRoot": "design/services/api-gateway",
+            "RequiredDocs": [
+                "design/services/api-gateway/overview_api-gateway.md"
+            ]
+        },
+        "Asset Management Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/asset-management-service",
+            "RequiredDocs": [
+                "design/services/asset-management-service/overview_asset-management-service.md"
+            ]
+        },
+        "Backtesting Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/backtesting-service",
+            "RequiredDocs": [
+                "design/services/backtesting-service/overview_backtesting-service.md"
+            ]
+        },
+        "Execution Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/execution-service",
+            "RequiredDocs": [
+                "design/services/execution-service/overview_execution-service.md"
+            ]
+        },
+        "Instrument Analysis Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/instrument-analysis-service",
+            "RequiredDocs": [
+                "design/services/instrument-analysis-service/overview_instrument-analysis-service.md"
+            ]
+        },
+        "Market Price Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/market-price-service",
+            "RequiredDocs": [
+                "design/services/market-price-service/overview_market-price-service.md"
+            ]
+        },
+        "News Intelligence Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/news-intelligence-service",
+            "RequiredDocs": [
+                "design/services/news-intelligence-service/overview_news-intelligence-service.md"
+            ]
+        },
+        "Portfolio Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/portfolio-service",
+            "RequiredDocs": [
+                "design/services/portfolio-service/overview_portfolio-service.md"
+            ]
+        },
+        "Position Sizing Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/position-sizing-service",
+            "RequiredDocs": [
+                "design/services/position-sizing-service/overview_position-sizing-service.md",
+                "design/services/position-sizing-service/architecture_overview.md"
+            ]
+        },
+        "Risk Management Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/risk-management-service",
+            "RequiredDocs": [
+                "design/services/risk-management-service/overview_risk-management-service.md"
+            ]
+        },
+        "Tenant Configuration Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/tenant-configuration-service",
+            "RequiredDocs": [
+                "design/services/tenant-configuration-service/overview_tenant-configuration-service.md"
+            ]
+        },
+        "Trading Signal Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/trading-signal-service",
+            "RequiredDocs": [
+                "design/services/trading-signal-service/overview_trading-signal-service.md"
+            ]
+        },
+        "Signal: Rust Pre-Calc Engine": {
+            "Type": "Service",
+            "DesignRoot": "design/services/trading-signal-service",
+            "ImplementationPath": "services/trading-signal-service",
+            "RequiredDocs": []
+        },
+        "Signal: Python Strategy Definition": {
+            "Type": "Service",
+            "DesignRoot": "design/services/trading-signal-service",
+            "ImplementationPath": "services/trading-signal-service",
+            "RequiredDocs": []
+        },
+        "User Management Service": {
+            "Type": "Service",
+            "DesignRoot": "design/services/user-management-service",
+            "RequiredDocs": [
+                "design/services/user-management-service/overview_user-management-service.md"
+            ]
+        },
+        "Web UI": {
+            "Type": "Service",
+            "DesignRoot": "design/services/web-ui",
+            "RequiredDocs": [
+                "design/services/web-ui/overview_web-ui.md"
+            ]
+        },
+        "End-to-End Verification": {
+            "Type": "Testing",
+            "DesignRoot": "design/roadmap/phases/phase5",
+            "RequiredDocs": [
+                "design/roadmap/phases/phase5/status.md"
+            ]
+        },
+        "Market Price Adapter YFinance": {
+            "Type": "Service",
+            "DesignRoot": "design/services/market-price-adapter-yfinance",
+            "RequiredDocs": [
+                "design/services/market-price-adapter-yfinance/overview.md"
+            ]
+        },
+        "Market Price: Final Verification": {
+            "Type": "Composite",
+            "Services": [
+                "Market Price Service",
+                "Market Price Adapter YFinance"
+            ]
+        }
+    }
+}

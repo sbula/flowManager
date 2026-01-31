@@ -1,0 +1,325 @@
+{
+    "_comment": "Defines the Modules available for dynamic template composition.",
+    "Modules": [
+        {
+            "Name": "Standard_Header",
+            "Type": "Structure",
+            "Section": "Header",
+            "Activation": {
+                "Always": true
+            }
+        },
+        {
+            "Name": "Implementation_Header",
+            "Type": "Structure",
+            "Section": "Header",
+            "Content": "# Planning Context\n> **Phase**: ${phase}\n> **Service**: ${service_name}\n> **Feature**: ${feature_name}\n> **Planning Level**: ${level}\n\n# Analysis & Research\n",
+            "Activation": {
+                "Always": true
+            }
+        },
+        {
+            "Name": "validation_header_template",
+            "Type": "Structure",
+            "Section": "Header",
+            "Content": "# Validation Report: {task_id}\n\n> Feature: {feature_name}\n> Date: {timestamp}\n> Status: **IN PROGRESS**\n\n## 1. Automated Checks\n",
+            "Activation": {
+                "Always": true
+            }
+        },
+        {
+            "Name": "review_gate_template",
+            "Type": "Structure",
+            "Section": "Review",
+            "Content": "\n## 2. Expert Review\n\n| Expert | Role | Status | Comments |\n|---|---|---|---|\n| {expert_name} | {expert_role} | PENDING | ... |\n",
+            "Activation": {
+                "Always": true
+            }
+        },
+        {
+            "Name": "Automated_Checks_Summary",
+            "Type": "Structure",
+            "Section": "Automated",
+            "Activation": {
+                "Always": true
+            }
+        },
+        {
+            "Name": "Test_Results_Summary",
+            "Type": "Metrics",
+            "Activation": {
+                "Always": true
+            }
+        },
+        {
+            "Name": "Edge_Case_Prompt",
+            "Type": "Structure",
+            "Section": "Findings",
+            "Activation": {
+                "TaskTypes": [
+                    "Review.Code",
+                    "Gate.Feature",
+                    "Gate.Fix"
+                ]
+            }
+        },
+        {
+            "Name": "Mini_Planning_Prompt",
+            "Type": "Structure",
+            "Section": "Planning",
+            "Activation": {
+                "TaskTypes": [
+                    "Impl.Feature"
+                ]
+            }
+        },
+        {
+            "Name": "Planning_Verdict",
+            "Type": "Structure",
+            "Section": "Planning",
+            "Activation": {
+                "TaskTypes": [
+                    "Impl.Feature"
+                ]
+            }
+        },
+        {
+            "Name": "Code_Metrics_Rust",
+            "Type": "Metrics",
+            "Section": "Findings",
+            "Activation": {
+                "Language": [
+                    "Rust",
+                    "rust",
+                    "rs"
+                ],
+                "TaskTypes": [
+                    "Review.Code",
+                    "Review.Refactor",
+                    "Valid.Quality",
+                    "Gate.Feature",
+                    "Gate.Refactor",
+                    "Impl.Feature"
+                ]
+            }
+        },
+        {
+            "Name": "Code_Metrics_Python",
+            "Type": "Metrics",
+            "Section": "Findings",
+            "Activation": {
+                "Language": "Python",
+                "TaskTypes": [
+                    "Review.Code",
+                    "Review.Refactor",
+                    "Valid.Quality",
+                    "Valid.Quality",
+                    "Gate.Feature",
+                    "Gate.Refactor",
+                    "Impl.Feature"
+                ]
+            }
+        },
+        {
+            "Name": "Linting_Report",
+            "Type": "Metrics",
+            "Section": "Findings",
+            "Activation": {
+                "TaskTypes": [
+                    "Review.Code",
+                    "Review.Refactor",
+                    "Valid.Quality",
+                    "Gate.Feature",
+                    "Gate.Fix",
+                    "Gate.Refactor",
+                    "Impl.Feature"
+                ]
+            }
+        },
+        {
+            "Name": "Product_Owner",
+            "Type": "Expert",
+            "Role": "Product Owner",
+            "Section": "Review",
+            "Activation": {
+                "Always": true
+            }
+        },
+        {
+            "Name": "Senior_Backend_Developer",
+            "Type": "Expert",
+            "Role": "Senior Backend Developer",
+            "Section": "Review",
+            "Activation": {
+                "Always": true
+            }
+        },
+        {
+            "Name": "Quant_Dev",
+            "Type": "Expert",
+            "Role": "Quant Dev",
+            "Section": "Review",
+            "Activation": {
+                "TaskTypes": [
+                    "Review.Code",
+                    "Gate.Feature",
+                    "Impl.Feature"
+                ],
+                "ServiceTypes": [
+                    "Engine",
+                    "Signal",
+                    "Risk"
+                ],
+                "Tags": [
+                    "Quant",
+                    "Math",
+                    "Algo"
+                ]
+            }
+        },
+        {
+            "Name": "Machine_Learning_Engineer",
+            "Type": "Expert",
+            "Role": "ML Engineer",
+            "Section": "Review",
+            "Activation": {
+                "ServiceTypes": [
+                    "Engine",
+                    "DataScience"
+                ],
+                "TaskTypes": [
+                    "Gate.Feature",
+                    "Impl.Feature"
+                ],
+                "Tags": [
+                    "ML",
+                    "AI",
+                    "Neural"
+                ]
+            }
+        },
+        {
+            "Name": "Database_Specialist",
+            "Type": "Expert",
+            "Role": "Database Specialist",
+            "Section": "Review",
+            "Activation": {
+                "HasDatabase": true,
+                "Tags": [
+                    "DB",
+                    "SQL",
+                    "Redis",
+                    "Schema"
+                ]
+            }
+        },
+        {
+            "Name": "Security",
+            "Type": "Expert",
+            "Role": "Security",
+            "Section": "Review",
+            "Activation": [
+                {
+                    "RiskLevel": [
+                        "High",
+                        "Critical"
+                    ]
+                },
+                {
+                    "Tags": [
+                        "Security",
+                        "Auth",
+                        "Crypto"
+                    ]
+                }
+            ]
+        },
+        {
+            "Name": "Performance_Engineer",
+            "Type": "Expert",
+            "Role": "Performance Engineer",
+            "Section": "Review",
+            "Activation": {
+                "PerformanceCritical": true,
+                "Tags": [
+                    "Perf",
+                    "Latency",
+                    "Optimization"
+                ]
+            }
+        },
+        {
+            "Name": "SRE",
+            "Type": "Expert",
+            "Role": "SRE",
+            "Section": "Review",
+            "Activation": {
+                "Always": true
+            }
+        },
+        {
+            "Name": "FPGA_Specialist",
+            "Type": "Expert",
+            "Role": "FPGA Specialist",
+            "Activation": {
+                "ServiceTypes": [
+                    "Hardware"
+                ],
+                "Tags": [
+                    "FPGA",
+                    "Hardware"
+                ]
+            }
+        },
+        {
+            "Name": "Head_of_Trading",
+            "Type": "Expert",
+            "Role": "Head of Trading",
+            "Section": "Review",
+            "Activation": {
+                "ServiceTypes": [
+                    "Signal",
+                    "Risk",
+                    "Engine"
+                ],
+                "Tags": [
+                    "Trading",
+                    "Finance"
+                ]
+            }
+        },
+        {
+            "Name": "Principal_Architect",
+            "Type": "Expert",
+            "Role": "Principal Architect",
+            "Section": "Review",
+            "Activation": {
+                "TaskTypes": [
+                    "Impl.Feature",
+                    "Gate.Feature",
+                    "Gate.Refactor"
+                ]
+            }
+        },
+        {
+            "Name": "QA_Engineer",
+            "Type": "Expert",
+            "Role": "QA Engineer",
+            "Section": "Review",
+            "Activation": {
+                "TaskTypes": [
+                    "Impl.Feature",
+                    "Gate.Feature"
+                ]
+            }
+        },
+        {
+            "Name": "Standard_Footer",
+            "Type": "Structure",
+            "Section": "Footer",
+            "Activation": {
+                "Always": true
+            }
+        }
+    ]
+}

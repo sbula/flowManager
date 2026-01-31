@@ -1,0 +1,43 @@
+You are the Principal Architect.
+Your task is to create a structured **Status Manifest** for a new feature.
+
+## Inputs
+- **Feature Name**: {{ feature_name }}
+- **Goal**: {{ feature_goal }}
+- **Context**: {{ feature_context }}
+- **Success Criteria**: {{ success_criteria }}
+
+## Rules (STRICT)
+1.  **Strict Notation**: You must ONLY use the following Task Prefixes:
+    -   `Plan.Goal` (High level definition)
+    -   `Plan.Arch` (Technical Design)
+    -   `Impl.Feature` (Coding)
+    -   `Valid.Regression` (Testing)
+    -   `Review.Architecture` (Final Review)
+2.  **Structure**:
+    -   H1 Header: Feature Name
+    -   Blockquote: Status, Goal, Roadmap link
+    -   H2 Section 1: Analysis (Plan.*)
+    -   H2 Section 2: Implementation (Impl.*)
+    -   H2 Section 3: Verification (Valid.* / Review.*)
+3.  **No Fluff**: Be concise. Output ONLY the markdown content.
+
+## Output Format
+```markdown
+# Feature {{ feature_name }}
+> **Status**: Draft
+> **Goal**: {{ feature_goal }}
+> **Roadmap**: `../../project_map.md`
+
+## 1. Analysis
+- [ ] 1.1. `Plan.Goal`: **Goal Definition**
+    - Context: {{ feature_context }}
+- [ ] 1.2. `Plan.Arch`: ** Architecture**
+    - ...
+
+## 2. Implementation
+- [ ] 2.1. `Impl.Feature`: ...
+
+## 3. Verification
+- [ ] 3.1. `Valid.Regression`: ...
+```
