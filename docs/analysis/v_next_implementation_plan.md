@@ -59,7 +59,7 @@ We treat **Agents**, **Workflows**, and **Prompts** as equal concepts. They all 
 *   **Config (`.flow/`)**: The *Recipes*. (The specific Prompts, Roles, and Steps).
 *   **Parameters**: The *Input*.
 
-### 1.3 The "Empty Project" Requirement
+### 1.4 The "Empty Project" Requirement
 **Problem**: Current system assumes a populated repo.
 **Requirement**:
 1.  `flow init`:
