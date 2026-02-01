@@ -1,7 +1,8 @@
 import pytest
 import pytest
 from pathlib import Path
-from flow.domain.parser import StatusParser, StatusParsingError, Task, StatusTree
+from flow.domain.models import Task, StatusTree, StatusParsingError
+from flow.domain.parser import StatusParser
 
 # Constants for Testing
 FLOW_DIR_NAME = ".flow"
@@ -152,6 +153,45 @@ def test_t1_11_smart_resume(flow_env):
     cursor = tree.get_active_task()
     assert cursor is not None
     assert cursor.name == "Phase 2"
+
+def test_t1_12_virtual_numbering(flow_env):
+    """T1.12 Virtual Numbering: Hierarchical IDs."""
+    p = flow_env / FLOW_DIR_NAME / "status.md"
+    p.write_text("""
+- [ ] Root 1
+    - [ ] Child A
+    - [ ] Child B
+- [ ] Root 2
+    - [ ] Child C
+        - [ ] Grandchild D
+""", encoding="utf-8")
+
+    tree = StatusParser(flow_env).load()
+    tasks = tree.root_tasks
+    
+    # Root 1
+    assert tasks[0].name == "Root 1"
+    assert tasks[0].id == "1"
+    
+    # Child A
+    child_a = tasks[0].children[0]
+    assert child_a.name == "Child A"
+    assert child_a.id == "1.1"
+    
+    # Child B
+    child_b = tasks[0].children[1]
+    assert child_b.name == "Child B"
+    assert child_b.id == "1.2"
+    
+    # Root 2
+    assert tasks[1].name == "Root 2"
+    assert tasks[1].id == "2"
+    
+    # Grandchild D (Root 2 -> Child C -> Grandchild D)
+    # Expected: 2.1.1
+    grandchild = tasks[1].children[0].children[0]
+    assert grandchild.name == "Grandchild D"
+    assert grandchild.id == "2.1.1"
 
 # --- 2. Validation (T2.xx) ---
 

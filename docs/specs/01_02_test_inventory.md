@@ -37,6 +37,17 @@ Each case uses the format: **Input** -> **Expected Output**.
 *   **T1.11 Smart Resume (No Active)**:
     *   Input: List `[x] A`, `[ ] B`, `[ ] C`. No `[/]` tags.
     *   Expectation: `get_active_task()` returns `B` (First Pending).
+*   **T1.12 Virtual Numbering**:
+    *   Input: Nested tree:
+        ```
+        - [ ] Root 1
+            - [ ] Child A
+        - [ ] Root 2
+        ```
+    *   Expectation:
+        *   Root 1 ID == "1"
+        *   Child A ID == "1.1"
+        *   Root 2 ID == "2"
 
 ## 2. Validation (The Strict Guardrails)
 *   **T2.01 Indent Error (1-Space)**:
@@ -71,7 +82,7 @@ Each case uses the format: **Input** -> **Expected Output**.
     *   Input: `- [ ] Hack @ ../system32/cmd.exe`.
     *   Expectation: Raises `ValidationError("Jailbreak attempt")`.
 
-## 3. Persistence (Writing)
+## 3. Persistence (Writing - Task 1.2b)
 *   **T3.01 Create New**:
     *   Input: `save(tree, "new_file.md")`.
     *   Expectation: File is created on disk.
@@ -93,3 +104,9 @@ Each case uses the format: **Input** -> **Expected Output**.
 *   **T3.07 Keyword Preservation**:
     *   Input: `- [ ] Task with (Hint) and [Keyword]`.
     *   Expectation: `save()` preserves specific chars properly, ensuring they aren't confused for status markers.
+*   **T3.08 Stability (Idempotency)**:
+    *   Input: Load a valid file. Immediately `save()` it.
+    *   Expectation: The output file content is **Identical** to the input file (assuming input was already normalized). Diff == 0.
+*   **T3.09 Content Fidelity**:
+    *   Input: Task with long description: `Fix the "Critical" bug in module/path.py where (x > 5) & [y < 10].`
+    *   Expectation: Written exactly as-is. No character changes.

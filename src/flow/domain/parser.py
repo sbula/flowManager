@@ -2,65 +2,7 @@ from __future__ import annotations
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 import re
-from pydantic import BaseModel, Field
-
-# --- Domain Models ---
-
-class Task(BaseModel):
-    """Represents a single task in the hierarchy."""
-    id: str = Field(..., description="Unique identifier within sibling scope")
-    name: str
-    status: str = Field(..., pattern=r"^(pending|active|done|skipped)$")
-    indent_level: int
-    ref: Optional[str] = None  # Fractal link (relative to .flow/)
-    parent: Optional[Task] = Field(None, exclude=True) # Backref (not serialized)
-    children: List[Task] = Field(default_factory=list)
-
-    model_config = {"arbitrary_types_allowed": True}
-
-class StatusTree(BaseModel):
-    """Represents the entire Status Document."""
-    headers: Dict[str, str] = Field(default_factory=dict)
-    root_tasks: List[Task] = Field(default_factory=list)
-
-    def get_active_task(self) -> Optional[Task]:
-        """
-        Returns the current cursor.
-        1. Deepest '[/]' (Active) node.
-        2. OR First '[ ]' (Pending) node (Smart Resume).
-        """
-        # 1. Search for Active
-        active = self._find_deepest_active(self.root_tasks)
-        if active:
-            return active
-            
-        # 2. Smart Resume (First Pending)
-        return self._find_first_pending(self.root_tasks)
-
-    def _find_deepest_active(self, tasks: List[Task]) -> Optional[Task]:
-        for t in tasks:
-            # Check children first (to find deepest)
-            deep = self._find_deepest_active(t.children)
-            if deep:
-                return deep
-            # If no children are active, check self
-            if t.status == 'active':
-                return t
-        return None
-
-    def _find_first_pending(self, tasks: List[Task]) -> Optional[Task]:
-        for t in tasks:
-            if t.status == 'pending':
-                return t
-            # If done/skipped, traverse children to find next pending
-            child = self._find_first_pending(t.children)
-            if child:
-                return child
-        return None
-
-class StatusParsingError(Exception):
-    """Custom exception for all parsing/validation failures."""
-    pass
+from flow.domain.models import Task, StatusTree, StatusParsingError
 
 # --- Parser ---
 
@@ -88,6 +30,15 @@ class StatusParser:
         # Stack for recursion: [(Task, indent_level)]
         # We start with a dummy root to hold top-level tasks
         stack: List[Task] = [] 
+        
+        # ID State: reset for each parse
+        # List[int], where index is indent_level. 
+        # But wait, indent_level is 0, 1, 2...
+        # Initial state should be ready for [1].
+        # Actually logic inside loop handles initialization if empty?
+        # Let's verify my logic block above: `if indent_level > len - 1`. 
+        # If len is 0, indent 0 > -1. Enters loop. append(1). counters=[1]. ID="1". Correct.
+        self._id_counters: List[int] = [] 
         
         # Regexes
         header_re = re.compile(r"^([^:]+):\s*(.*)$")
@@ -160,9 +111,51 @@ class StatusParser:
                 if ".." in ref:
                     raise StatusParsingError(f"Line {line_idx}: Jailbreak attempt detected in path '{ref}'")
 
+            # ID Generation (Hierarchical)
+            # Logic:
+            # - Maintain a list of counters for each level.
+            # - When going deeper (indent > prev), append 1.
+            # - When staying same, increment last.
+            # - When going up, pop and increment last.
+
+            if indent_level == 0:
+                # Root level
+                if not stack:
+                   # Very first task
+                   counters = [1]
+                else:
+                   # Sibling of previous root
+                   counters = [counters[0] + 1]
+            else:
+                 # Calculate relative to parent
+                 # We need to know the parent's ID or keep a global state?
+                 # Better: Keep `counters` list where index = indent_level.
+                 pass
+
+            # Redesigned ID Logic:
+            # `counters` list tracks the count at each depth.
+            # e.g. [1, 2, 1] -> 1.2.1
+            
+            non_local_counters = getattr(self, "_id_counters", [])
+            
+            if indent_level > len(non_local_counters) - 1:
+                # Deeper: Start new counter
+                # Fill gaps if skipped reference levels (unlikely with strict parser)
+                while len(non_local_counters) <= indent_level:
+                    non_local_counters.append(1)
+            else:
+                # Same or Shallower: Increment at current level and reset deeper
+                non_local_counters = non_local_counters[:indent_level + 1]
+                non_local_counters[indent_level] += 1
+            
+            self._id_counters = non_local_counters
+            
+            # Form ID string
+            task_id = ".".join(map(str, non_local_counters))
+
             # Create Task
             new_task = Task(
-                id=f"auto_{line_idx}", # Temporary ID
+                id=task_id,
                 name=name,
                 status=status,
                 indent_level=indent_level,
