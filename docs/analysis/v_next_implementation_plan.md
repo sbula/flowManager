@@ -23,6 +23,17 @@ We will use a **Parallel Execution Model** to ensure no disruption to existing w
 *   **Benefit**:
     *   **Safety**: The tool logic is read-only and external. It cannot be broken by project refactoring.
     *   **Multi-Project**: One installed engine manages `Project A`, `Project B`, and `Project C`.
+    *   **Pollution Control**: ALL files must live in `.flow/`. No other files in root.
+
+### 1.3 The "Single Folder" Policy (.flow)
+**Requirement**: "Minimal Pollution".
+*   **Root**: Only one folder `.flow/` is allowed in the user's project root.
+*   **Contents**:
+    *   `.flow/config.json` (Configuration)
+    *   `.flow/status.md` (State / Interface)
+    *   `.flow/logs/` (Execution Logs)
+    *   `.flow/templates/` (Local overrides)
+*   **Fractal**: Sub-modules can have their own `.flow/` folder (e.g., `ServiceA/.flow/status.md`).
 
 
 
@@ -53,7 +64,7 @@ We treat **Agents**, **Workflows**, and **Prompts** as equal concepts. They all 
 **Requirement**:
 1.  `flow init`:
     *   Creates `.flow/config.json`.
-    *   Creates `status.md` (Level 1 Root).
+    *   Creates `.flow/status.md` (Level 1 Root).
     *   Creates directories: `docs/analysis`, `docs/protocols`.
 2.  **Verification**: New E2E test `tests/e2e/test_init_fresh.py` that runs in a temp dir.
 

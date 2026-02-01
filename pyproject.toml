@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "flow"
+version = "0.1.0"
+description = "Universal Flow Engine (V-Next) - An AI-agnostic, fractal workflow orchestrator."
+authors = ["Flow Manager Team"]
+readme = "README.md"
+packages = [{include = "flow", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pydantic = "^2.12.5"
+jinja2 = "^3.1.6"
+typer = {extras = ["all"], version = "^0.21.1"}
+pathspec = "^0.12.1"
+rich = "^14.2.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.2"
+black = "^25.1.0"
+isort = "^7.0.0"
+mypy = "^1.19.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.black]
+line_length = 88
