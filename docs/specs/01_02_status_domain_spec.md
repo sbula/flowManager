@@ -58,16 +58,13 @@ While the file on disk relies solely on **Indentation** for structure, the Parse
 *   **Directive 3: Lossy Comments**: 
     *   `<!-- partial comment -->` is stripped (Parser ignores it, so Persister drops it).
 
-    *   `<!-- partial comment -->` is stripped (Parser ignores it, so Persister drops it).
 
 ## 5. Domain Operations (CRUD) - The "Smart Tree"
 To ensure "Safe Writes", the `StatusTree` exposes atomic operations that maintain internal consistency (IDs, hierarchy).
 
-## 5. Domain Operations (CRUD) - The "Smart Tree"
-To ensure "Safe Writes", the `StatusTree` exposes atomic operations that maintain internal consistency (IDs, hierarchy).
 
 *   `get_active_task()`: Returns the deepest `[/]` node (The "Cursor").
-*   `find_task(id)`: Returns Task or raises IDError.
+*   `find_task(id)`: Returns Task or raises `StaleIDError` (if tree modified) or `ValueError` (not found).
 *   `add_task(parent_id, name, status="pending", index=None)`:
     *   **Logic**:
         *   If `index` is None: Append to list.
@@ -78,11 +75,10 @@ To ensure "Safe Writes", the `StatusTree` exposes atomic operations that maintai
         *   **Duplicate Name**: Raises `ValueError` if name exists among siblings.
     *   **ID Invalidation**: All Virtual IDs are considered **Invalid** after this operation. Caller MUST re-index or reload if they need IDs. (T4.15).
 *   `update_task(id, name=None, status=None, context_anchor=None)`:
-    *   **Anchor Check**: If `context_anchor` provided, must match current `task.name`.
+    *   **Anchor Check**: If `context_anchor` provided, must match current `task.name` (Raises `ValueError`).
     *   **State Logic (Strict)**: 
         *   If `status="active"`:
             *   **Sibling Check**: Raises `StateError` if any *other* sibling is already `active`. (Single Focus Rule).
-            *   **Parent Check**: Raises `StateError` if Parent is NOT `active` (Hierarchy Rule).
             *   **Parent Check**: Raises `StateError` if Parent is NOT `active` (Hierarchy Rule).
             *   *Note*: To switch focus, User must explicitly Suspend old task first. To dive deep, User must Activate parent first.
             *   **Re-Open Workflow**: If Parent is `[x]`, User must explicitly `update_task(parent, status="active")` BEFORE activating the child. (No implicit auto-reopen).

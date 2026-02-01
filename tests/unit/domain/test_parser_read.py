@@ -274,3 +274,26 @@ def test_t2_10_path_traversal(flow_env):
     p.write_text("- [ ] Hack @ ../cmd.exe", encoding="utf-8")
     with pytest.raises(StatusParsingError, match="Jailbreak attempt"):
         StatusParser(flow_env).load()
+
+def test_t2_11_keyword_ambiguity(flow_env):
+    """T2.11 Keyword Ambiguity: Brackets in text."""
+    p = flow_env / FLOW_DIR_NAME / "status.md"
+    p.write_text("- [ ] Task with [x] inside name", encoding="utf-8")
+    
+    tree = StatusParser(flow_env).load()
+    task = tree.root_tasks[0]
+    assert task.status == "pending"
+    assert task.name == "Task with [x] inside name"
+
+def test_t2_12_path_protocol_safety(flow_env):
+    """T2.12 Path Protocol Safety: malicious schemes."""
+    p = flow_env / FLOW_DIR_NAME / "status.md"
+    p.write_text("- [ ] Malicious @ javascript:alert(1)", encoding="utf-8")
+    
+    # Parser should probably catch this?
+    # Current implementation check: regex captures ref. 
+    # Logic: StatusParser._parse_content -> T2.10 check ("..") -> T2.12 check?
+    # I need to ensure StatusParser HAS this logic or add it.
+    # The spec says "Raises ValidationError".
+    with pytest.raises(StatusParsingError, match="Invalid Protocol"):
+        StatusParser(flow_env).load()

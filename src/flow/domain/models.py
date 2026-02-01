@@ -28,7 +28,12 @@ class Task(BaseModel):
     parent: Optional[Task] = Field(None, exclude=True) # Backref (not serialized)
     children: List[Task] = Field(default_factory=list)
 
-    model_config = {"arbitrary_types_allowed": True}
+    children: List[Task] = Field(default_factory=list)
+
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True
+    }
 
 class StatusTree(BaseModel):
     """Represents the entire Status Document."""

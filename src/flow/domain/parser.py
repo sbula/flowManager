@@ -184,6 +184,17 @@ class StatusParser:
                 if ".." in ref:
                     raise StatusParsingError(f"Line {line_idx}: Jailbreak attempt detected in path '{ref}'")
 
+                # T2.12: Path Protocol Safety
+                if ":" in ref and not (len(ref) > 1 and ref[1] == ":" and "\\" in ref): 
+                    # Colon usually implies protocol (http:, javascript:) unless it's a Windows drive (C:\)
+                    # We block all protocols. Windows Absolute Paths are also blocked by ".." check effectively if outside root,
+                    # but "C:\" is technically absolute. Status files should be relative.
+                    # So blocking ":" is generally safe given we want relative paths.
+                    # But wait, what if filename has colon? (Forbidden in Windows, allowed in Linux).
+                    # Let's target specific dangerous protocols for now or enforce strict relative path rules.
+                    if any(ref.lower().startswith(p + ":") for p in ["http", "https", "ftp", "javascript", "file", "data"]):
+                         raise StatusParsingError(f"Line {line_idx}: Invalid Protocol in path '{ref}'")
+
             # ID Generation (Hierarchical)
             # Logic:
             # - Maintain a list of counters for each level.
