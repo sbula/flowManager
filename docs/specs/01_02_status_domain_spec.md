@@ -93,3 +93,14 @@ To ensure "Safe Writes", the `StatusTree` exposes atomic operations that maintai
 *   **T2.xx**: Validation Guardrails (Read).
 *   **T3.xx**: Persistence & Fidelity (Write).
 *   **T4.xx**: Domain Operations & State Logic (CRUD).
+
+## 7. Automation Policies (The "Smart Tree" Logic)
+## 7. Automation Policies (The "Smart Tree" Logic)
+*   **Auto-Activation (Bubble Up)**:
+    *   **Rule**: If a task becomes `active` or `done`, its Parent must be at least `active`.
+    *   **Reasoning**: You cannot complete a sub-task if the parent project is not "Open/In-Progress".
+    *   **Trigger**: `update_task(status="active"|"done")`.
+*   **Auto-Completion (Bubble Up)**:
+    *   **Rule**: When the *last* pending/active child transitions to `done`, the Parent automatically transitions to `done`.
+    *   **Recursion**: This checks propergates up the tree. (e.g. 1.1.1 [x] -> 1.1 [x] -> 1 [x]).
+    *   **Trigger**: `update_task(status="done")`.

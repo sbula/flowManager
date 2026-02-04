@@ -207,6 +207,34 @@ Each case uses the format: **Input** -> **Expected Output**.
     *   Input: `task_a.add(task_a)`.
     *   Expectation: Raises `ValueError` (Recursion/Cycle).
 *   **T4.19 Deep State Validation**:
-    *   Input: Subtree: Parent `[ ]` -> Child `[/]`.
     *   Action: `tree.add_task(parent)`.
     *   Expectation: Raises `StateError` (Logic Conflict in subtree).
+
+## 5. Domain Policy (Auto-Propagation / Protocol V2)
+Goal: Verify **Auto-Activation** and **Auto-Completion**.
+
+*   **T5.01 Activation Bubble**:
+    *   Input: Parent `[ ]`. Child `[ ]`.
+    *   Action: Update Child -> `[x]`.
+    *   Expectation: Parent becomes `[/]` (Active). (Because work happened).
+    *   *Correction*: If Child becomes `[x]` and it was the *only* child, Parent becomes `[x]`.
+    *   *Scenario B*: Parent `[ ]`, Child 1 `[ ]`, Child 2 `[ ]`. Update Child 1 -> `[x]`.
+    *   Expectation: Child 1 `[x]`. Parent `[/]` (Active). Child 2 `[ ]`.
+*   **T5.02 Completion Bubble**:
+    *   Input: Parent `[/]`. Child 1 `[x]`, Child 2 `[/]`.
+    *   Action: Update Child 2 -> `[x]`.
+    *   Expectation: Parent automatically becomes `[x]`.
+*   **T5.03 Deep Completion Bubble**:
+    *   Input: 1.1.1 `[ ]`. (All ancestors `[ ]`).
+    *   Action: Update 1.1.1 -> `[x]`.
+    *   Expectation:
+        *   1.1.1 -> `[x]`
+        *   1.1 -> `[x]` (All children done)
+        *   1 -> `[x]` (All children done)
+*   **T5.04 Deep Activation Bubble**:
+    *   Input: 1.1.1 `[ ]`. Ancestors `[ ]`. 1.1.2 `[ ]`.
+    *   Action: Update 1.1.1 -> `[x]`.
+    *   Expectation: 
+        *   1.1.1 -> `[x]`
+        *   1.1 -> `[/]` (Since 1.1.2 is mostly pending).
+        *   1 -> `[/]` (Since 1.1 is active).

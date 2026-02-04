@@ -50,15 +50,31 @@ class StatusTree(BaseModel):
         self._reindex()
 
     def _reindex(self):
-        """Rebuilds internal ID index. Should be called after Load."""
+        """
+        Rebuilds internal ID index and Recalculates Virtual IDs.
+        Should be called after Load or Structure Modification.
+        """
         self._id_index.clear()
-        self._index_tasks(self.root_tasks)
+        
+        # Recalculate IDs recursively
+        self._assign_ids_recursive(self.root_tasks, parent_id_prefix="")
+        
         self._ids_valid = True
 
-    def _index_tasks(self, tasks: List[Task]):
-        for t in tasks:
-            self._id_index[t.id] = t
-            self._index_tasks(t.children)
+    def _assign_ids_recursive(self, tasks: List[Task], parent_id_prefix: str):
+        """Helper to assign 1.1, 1.2 style IDs."""
+        for idx, task in enumerate(tasks, start=1):
+            if parent_id_prefix:
+                new_id = f"{parent_id_prefix}.{idx}"
+            else:
+                new_id = str(idx) # Root level "1", "2"
+            
+            task.id = new_id
+            self._id_index[new_id] = task
+            
+            # Recurse
+            if task.children:
+                self._assign_ids_recursive(task.children, parent_id_prefix=new_id)
 
     def find_task(self, task_id: str) -> Task:
         """Returns Task by ID. Raises StaleIDError if tree modified."""
@@ -125,6 +141,38 @@ class StatusTree(BaseModel):
                 self._validate_active_transition_context(siblings, parent_id_ref=parent_ref)
             
             task.status = status
+            
+            # Auto-Propagation (Protocol V2)
+            self._propagate_state(task)
+
+    def _propagate_state(self, task: Task):
+        """
+        Recursively updates parent state based on children.
+        1. Activation Bubble: Child Active/Done -> Parent Active (if pending).
+        2. Completion Bubble: ALL Children Done -> Parent Done.
+        """
+        if not task.parent:
+            return
+
+        parent = task.parent
+        siblings = parent.children
+
+        # 1. Activation Bubble
+        if task.status in ["active", "done"]:
+            if parent.status == "pending":
+                parent.status = "active"
+                # Recurse up (Parent became active, so Grandparent might need to)
+                self._propagate_state(parent)
+
+        # 2. Completion Bubble
+        # Only trigger if task became done
+        if task.status == "done":
+            all_done = all(s.status == "done" for s in siblings)
+            if all_done:
+                parent.status = "done"
+                # Recurse up
+                self._propagate_state(parent)
+
 
     def remove_task(self, task_id: str):
         """Removes a task. Invalidates IDs."""
