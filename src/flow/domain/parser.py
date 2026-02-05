@@ -23,11 +23,12 @@ class StatusParser:
         full_path = self.flow_dir / status_path
         if not full_path.exists():
             return StatusTree()
-            
+
         # Integrity Check (T1.13)
         self._check_integrity(full_path)
-            
+
         return self._parse_content(full_path.read_text(encoding="utf-8"))
+
 
     def accept_changes(self, status_path: str = "status.md"):
         """Updates .meta hash to match current file (T1.14)."""
@@ -105,12 +106,6 @@ class StatusParser:
         stack: List[Task] = [] 
         
         # ID State: reset for each parse
-        # List[int], where index is indent_level. 
-        # But wait, indent_level is 0, 1, 2...
-        # Initial state should be ready for [1].
-        # Actually logic inside loop handles initialization if empty?
-        # Let's verify my logic block above: `if indent_level > len - 1`. 
-        # If len is 0, indent 0 > -1. Enters loop. append(1). counters=[1]. ID="1". Correct.
         self._id_counters: List[int] = [] 
         
         # Regexes
@@ -126,19 +121,25 @@ class StatusParser:
             if not line.strip(): 
                 continue # Skip empty lines
 
-            # 1. Parse Headers
-            if parsing_headers:
+            # Prority: Check for Task match FIRST
+            # If it matches Task regex, it IS a task, even if it has a colon.
+            task_match = task_re.match(line)
+            
+            if task_match:
+                # Found a task, so header parsing (if active) stops
+                parsing_headers = False
+            
+            elif parsing_headers:
+                # Only check for header if NOT a task and still parsing headers
                 header_match = header_re.match(line)
                 if header_match:
                     key, val = header_match.groups()
                     tree.headers[key.strip()] = val.strip()
                     continue
                 else:
-                    # First non-header line stops header parsing
+                    # First non-header, non-task line stops header parsing
                     parsing_headers = False
 
-            # 2. Parse Tasks
-            task_match = task_re.match(line)
             if not task_match:
                 # T2.04: Syntax Error (unless it was a header fail, but we assume structural valid)
                 # If indentation is present but no marker -> Error
@@ -174,6 +175,7 @@ class StatusParser:
             # Parse Ref (Fractal)
             ref = None
             name = full_text.strip()
+            # Removed debug raise
             ref_match = ref_re.match(name)
             if ref_match:
                 name, _, ref = ref_match.groups()
@@ -185,15 +187,14 @@ class StatusParser:
                     raise StatusParsingError(f"Line {line_idx}: Jailbreak attempt detected in path '{ref}'")
 
                 # T2.12: Path Protocol Safety
-                if ":" in ref and not (len(ref) > 1 and ref[1] == ":" and "\\" in ref): 
-                    # Colon usually implies protocol (http:, javascript:) unless it's a Windows drive (C:\)
-                    # We block all protocols. Windows Absolute Paths are also blocked by ".." check effectively if outside root,
-                    # but "C:\" is technically absolute. Status files should be relative.
-                    # So blocking ":" is generally safe given we want relative paths.
-                    # But wait, what if filename has colon? (Forbidden in Windows, allowed in Linux).
-                    # Let's target specific dangerous protocols for now or enforce strict relative path rules.
-                    if any(ref.lower().startswith(p + ":") for p in ["http", "https", "ftp", "javascript", "file", "data"]):
-                         raise StatusParsingError(f"Line {line_idx}: Invalid Protocol in path '{ref}'")
+                # Explicit check for known bad protocols first
+                if any(ref.lower().startswith(p + ":") for p in ["http", "https", "ftp", "javascript", "file", "data"]):
+                      # Exception: Windows absolute path starting with C:\ etc.
+                      # If len > 1, second char is :, third is \ -> Windows Path.
+                      is_windows_path = len(ref) > 1 and ref[1] == ":" and "\\" in ref
+                      if not is_windows_path:
+                           raise StatusParsingError(f"Line {line_idx}: Invalid Protocol in path '{ref}'")
+
 
             # ID Generation (Hierarchical)
             # Logic:
