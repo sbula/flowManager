@@ -1,0 +1,352 @@
+import importlib
+import json
+import os
+import time
+from pathlib import Path
+from typing import TYPE_CHECKING, Dict, Optional
+
+from flow.engine.atoms import Atom, FlowEngineAtom, ManualInterventionAtom
+from flow.engine.models import RegistryError, RootNotFoundError
+
+if TYPE_CHECKING:
+    from flow.domain.models import StatusTree, Task
+
+
+class Engine:
+    def __init__(self):
+        self.root: Optional[Path] = None
+        self.flow_dir: Optional[Path] = None
+        self.registry_map: Dict[str, str] = {}
+        self.persister = None
+        self.context: Dict[str, Any] = {}
+
+    def hydrate(self):
+        """
+        Discovers the project root by looking for .flow/ folder.
+        Scanning upwards from CWD.
+        """
+        cwd = Path(os.getcwd()).resolve()
+
+        current = cwd
+        found = False
+
+        # Scan upwards (root of drive logic handled by checks)
+        while True:
+            candidate = current / ".flow"
+
+            # T1.09: If .flow exists but is a file -> CRASH.
+            if candidate.exists() and not candidate.is_dir():
+                raise RootNotFoundError(
+                    f"Found .flow at {candidate} but it is not a directory."
+                )
+
+            if candidate.exists() and candidate.is_dir():
+                self.root = current
+                self.flow_dir = candidate
+                found = True
+                break
+
+            parent = current.parent
+            if parent == current:  # Reached root of filesystem
+                break
+            current = parent
+
+        if not found:
+            raise RootNotFoundError(f"No .flow/ directory found starting from {cwd}")
+
+        # Load Registry
+        self._load_registry()
+
+        # Init components
+        from flow.domain.persister import StatusPersister
+
+        self.persister = StatusPersister(self.flow_dir)
+        self.context: Dict[str, Any] = {}
+
+    def _load_registry(self):
+        reg_file = self.flow_dir / "flow.registry.json"
+        if not reg_file.exists():
+            # T7.03 implies empty config handling if empty file, but if missing?
+            # Start with empty.
+            self.registry_map = {}
+            return
+
+        try:
+            data = json.loads(reg_file.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise RegistryError("Invalid Registry: Root must be a dictionary.")
+            self.registry_map = data
+        except json.JSONDecodeError:
+            raise RegistryError("Invalid JSON in flow.registry.json")
+
+    def get_atom_class(self, atom_name: str) -> str:
+        """
+        Returns class path for an atom.
+        Does NOT import it yet (that's Execution phase).
+        """
+        if atom_name not in self.registry_map:
+            raise RegistryError(f"Atom '{atom_name}' not found in registry.")
+        return self.registry_map[atom_name]
+
+    def dispatch(self, task) -> "Atom":
+        """
+        Determines the correct Atom for a Task.
+        Priority:
+        1. Metadata <!-- type: flow -->
+        2. Registry Match [AtomName]
+        3. Fallback -> ManualInterventionAtom
+
+        Logic:
+        - Parse name for [Atom] tag using regex.
+        - Look up class in registry.
+        - Import class.
+        - Verify subclass Atom.
+        - Instantiate.
+        """
+        import re
+
+        # T2.01 Explicit Metadata Match
+        # Policy: Must be at end of string or exact match
+        if task.name.strip().endswith("<!-- type: flow -->"):
+            from flow.engine.atoms import FlowEngineAtom
+
+            return FlowEngineAtom()
+
+        # 2. Registry Match (T2.02)
+        # Regex to find [AtomName] at start of string
+        # T2.08: Case Sensitivity? Registry keys are usually PascalCase or specific.
+        # T2.10: Invisible Character Dispatch (Normalization)
+        # Remove zero-width spaces (\u200b) etc.
+        clean_name = task.name.replace("\u200b", "").strip()
+
+        # Let's extract the tag content first.
+        atom_tag_re = re.compile(r"^\[([a-zA-Z0-9_]+)\]")
+        match = atom_tag_re.match(clean_name)
+
+        if match:
+            atom_key = match.group(1)
+
+            # Lookup in registry
+            if atom_key in self.registry_map:
+                class_path = self.registry_map[atom_key]
+                try:
+                    # Import Logic
+                    module_name, class_name = class_path.rsplit(".", 1)
+                    module = importlib.import_module(module_name)
+                    atom_class = getattr(module, class_name)
+
+                    # Verify Subclass (T2.05)
+                    if not issubclass(atom_class, Atom):
+                        # Log error? Return Manual?
+                        # Spec says "Safety check". Fallback is safe.
+                        return ManualInterventionAtom()
+
+                    return atom_class()
+                except Exception as e:
+                    # T1.18 Atom Import/Init Crash -> Manual/Broken
+                    # Catch everything to ensure Dispatch Safety (T2.04/T2.05)
+                    import sys
+
+                    sys.stderr.write(f"DEBUG: Import Failed for {atom_key}: {e}\n")
+                    import traceback
+
+                    traceback.print_exc(file=sys.stderr)
+                    return ManualInterventionAtom()
+
+        # 3. Fallback
+        return ManualInterventionAtom()
+
+    def load_status(self) -> "StatusTree":
+        """Delegate to StatusParser."""
+        from flow.domain.parser import StatusParser
+
+        if not self.root:
+            raise RootNotFoundError("Root not set.")
+
+        root = self.root
+        parser = StatusParser(root)
+        try:
+            tree = parser.load()
+            tree._reindex()
+            return tree
+        except Exception:
+            # If load fails, what? Return empty? Or raise?
+            # T3.02 Crash handling might catch this at higher level
+            raise
+
+    def find_active_task(self) -> Optional["Task"]:
+        """
+        Finds the 'active' task.
+        If none active, implements Smart Resume (find first pending).
+        """
+        tree = self.load_status()
+
+        # 1. Check for Explicit Active
+        # StatusTree has helper?
+        active = tree.find_active_task()
+        if active:
+            return active
+
+        # 2. Smart Resume (First Pending)
+        # We need to traverse the tree.
+        # StatusTree might not have a flat list, but recursive.
+        # T3.01: "Selects 2nd task" (first pending).
+
+        # Simple traversal helper
+        def find_first_pending(tasks):
+            for t in tasks:
+                if t.status == "pending":
+                    return t
+                res = find_first_pending(t.children)
+                if res:
+                    return res
+            return None
+
+        return find_first_pending(tree.root_tasks)
+
+    def run_task(self, task: "Task"):
+        """
+        Executes a task.
+        1. Validates State (Pending -> Active)
+        2. Dispatches
+        3. Updates State (Active/Done)
+        4. Persist
+        """
+        self._validate_hydration()
+
+        try:
+            # 1. Acquire Lock & Check Circuit Breaker
+            self._handle_lock_acquisition_safely(task)
+
+            # 2. Execute Task
+            self._execute_task_lifecycle(task)
+
+        except Exception as e:
+            self._handle_crash(task, e)
+        finally:
+            self._release_intent_lock()
+
+    def _validate_hydration(self):
+        if not self.root:
+            from flow.engine.models import RootNotFoundError
+
+            raise RootNotFoundError("Root not set.")
+        if not self.flow_dir:
+            from flow.engine.models import RootNotFoundError
+
+            raise RootNotFoundError("Engine not hydrated.")
+
+    def _handle_lock_acquisition_safely(self, task):
+        try:
+            self._acquire_intent_lock(task.id)
+        except Exception as e:
+            from flow.engine.models import CircuitBreakerError
+
+            if isinstance(e, CircuitBreakerError):
+                self._handle_circuit_breaker(task)
+            raise
+
+    def _handle_circuit_breaker(self, task):
+        tree = self.load_status()
+        tree.update_task(task.id, status="error")
+        self.persister.save(tree)
+        self._release_intent_lock()
+        raise SystemExit(1)
+
+    def _execute_task_lifecycle(self, task):
+        # Update State -> Active
+        self.context["__task_id__"] = task.id
+        tree = self.load_status()
+        tree.update_task(task.id, status="active")
+        self.persister.save(tree)
+
+        # Dispatch
+        atom = self.dispatch(task)
+
+        # Run
+        result = atom.run(self.context)
+
+        # Merge Context
+        if result and result.success and result.exports:
+            self.context.update(result.exports)
+
+        # Update State -> Done
+        tree.update_task(task.id, status="done")
+        self.persister.save(tree)
+
+    def _handle_crash(self, task, e):
+        print(f"CRASH: {e}")
+        try:
+            tree = self.load_status()
+            tree.update_task(task.id, status="error")
+            self.persister.save(tree)
+        except Exception:
+            pass
+        raise SystemExit(1)
+
+    def _acquire_intent_lock(self, task_id: str):
+        flow_dir = self.flow_dir
+        if not flow_dir:
+            return
+
+        lock_file = flow_dir / "intent.lock"
+        retry_count = 0
+
+        if lock_file.exists():
+            try:
+                content = lock_file.read_text(encoding="utf-8")
+                if content:
+                    lock_data = json.loads(content)
+
+                    # 1. Check PID Ownership (Recursion/Re-entry)
+                    if lock_data.get("pid") == os.getpid():
+                        return
+
+                    # 2. Check WAL Recovery (Same Task, Crashed)
+                    # If task_id matches, we assume we are retrying a crashed task
+                    if lock_data.get("task_id") == task_id:
+                        retry_count = lock_data.get("retry_count", 0) + 1
+
+                        # T3.02 Circuit Breaker
+                        if retry_count > 3:
+                            from flow.engine.models import CircuitBreakerError
+
+                            raise CircuitBreakerError(
+                                f"Task {task_id} failed {retry_count} times. Giving up."
+                            )
+
+                    # 3. Check Stale Lock (Zombie Stealing T3.11)
+                    else:
+                        # Different task is locked. Is it alive?
+                        timestamp = lock_data.get("timestamp", 0)
+                        if time.time() - timestamp > 30:  # 30s timeout
+                            # Steal it
+                            pass
+                        else:
+                            raise RuntimeError(
+                                f"Engine Locked by {lock_data.get('task_id')}"
+                            )
+
+            except (json.JSONDecodeError, OSError):
+                # Corrupt lock - Steal it
+                pass
+
+        # Write Lock (Update or Create)
+        lock_data = {
+            "pid": os.getpid(),
+            "timestamp": time.time(),
+            "task_id": task_id,
+            "retry_count": retry_count,
+        }
+        lock_file.write_text(json.dumps(lock_data), encoding="utf-8")
+
+    def _release_intent_lock(self):
+        if self.flow_dir:
+            lock_file = self.flow_dir / "intent.lock"
+            if lock_file.exists():
+                # Only unlink if WE own it?
+                # For V1.3 simple unlink
+                try:
+                    lock_file.unlink()
+                except OSError:
+                    pass

@@ -19,6 +19,7 @@ pytest = "^9.0.2"
 black = "^25.1.0"
 isort = "^7.0.0"
 mypy = "^1.19.1"
+lizard = "^1.17.10"
 
 [build-system]
 requires = ["poetry-core"]

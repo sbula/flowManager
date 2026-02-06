@@ -13,16 +13,20 @@
 # limitations under the License.
 
 import importlib
-from typing import Dict, Any
-from workflow_core.engine.schemas.models import WorkflowStep, StepType
+from typing import Any, Dict
+
+from workflow_core.engine.schemas.models import StepType, WorkflowStep
+
 
 class AtomExecutor:
     """Executes Atomic Tasks by mapping them to Python functions."""
-    
+
     def __init__(self, atoms_registry: Dict[str, Any]):
         self.registry = atoms_registry
 
-    def execute_step(self, step: WorkflowStep, context: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_step(
+        self, step: WorkflowStep, context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Execute a single atomic step.
         Returns the output dictionarly.
@@ -36,15 +40,15 @@ class AtomExecutor:
 
         module_name = atom_def.get("python_module")
         if not module_name:
-             # Fallback for testing/mocking if no module defined
-             return {"status": "MOCKED", "message": f"Executed {step.ref}"}
+            # Fallback for testing/mocking if no module defined
+            return {"status": "MOCKED", "message": f"Executed {step.ref}"}
 
         try:
             # Dynamic Import
             module = importlib.import_module(module_name)
             if not hasattr(module, "run"):
-                 raise AttributeError(f"Module {module_name} missing 'run' function")
-            
+                raise AttributeError(f"Module {module_name} missing 'run' function")
+
             # Merit arguments: Step Args override Default Args
             # Interpolation Logic
             final_args = {}
@@ -61,11 +65,11 @@ class AtomExecutor:
                         final_args[k] = v
                 else:
                     final_args[k] = v
-            
+
             # Execute
             result = module.run(final_args, context)
             return result
-            
+
         except ImportError as e:
             raise ImportError(f"Failed to load atom module {module_name}: {e}")
         except Exception as e:

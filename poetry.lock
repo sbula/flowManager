@@ -246,6 +246,22 @@ files = [
 ]
 
 [[package]]
+name = "lizard"
+version = "1.21.0"
+description = "A code analyzer without caring the C/C++ header files. It works with Java, C/C++, JavaScript, Python, Ruby, Swift, Objective C. Metrics includes cyclomatic complexity number etc."
+optional = false
+python-versions = "*"
+groups = ["dev"]
+files = [
+    {file = "lizard-1.21.0-py2.py3-none-any.whl", hash = "sha256:0d47e603bee2616790c73a2fa415bbba720926f72997008c9a738ff560ba78ae"},
+    {file = "lizard-1.21.0.tar.gz", hash = "sha256:35e62e2a42e06d379de4545f5866eb562c0b4fce5aeae779ec9dbda946e0b958"},
+]
+
+[package.dependencies]
+pathspec = "*"
+pygments = "*"
+
+[[package]]
 name = "markdown-it-py"
 version = "4.0.0"
 description = "Python port of markdown-it. Markdown parsing, done right!"
@@ -898,4 +914,4 @@ typing-extensions = ">=4.12.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "925e0c9a21e383e21166a53e49c2962c9b8d487816dc3c88feb281e85985143b"
+content-hash = "a93161f1544a6ec2ee62e5a781ec394c321fe7a7ed17bac172e7ef78c154747d"

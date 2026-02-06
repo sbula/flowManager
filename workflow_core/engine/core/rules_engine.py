@@ -14,7 +14,8 @@
 
 import json
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 
 class RulesEngine:
     def __init__(self, config_root: Path):

@@ -19,21 +19,25 @@ from pathlib import Path
 root_dir = Path(__file__).parent.parent.parent
 sys.path.append(str(root_dir))
 
+
 def verify():
     print(">> Verifying V3 Refactor...")
-    
+
     # 1. Check Imports
     try:
         from workflow_core.engine.core.rules_engine import RulesEngine
+
         print("   [x] RulesEngine Imported")
-        
+
         from workflow_core.engine.core.review_orchestrator import ReviewOrchestrator
+
         print("   [x] ReviewOrchestrator Imported")
-        
+
         # Check reconciler import (ensure no syntax errors)
         from workflow_core.flow_manager import reconciler
+
         print("   [x] Reconciler Imported")
-        
+
     except ImportError as e:
         print(f"   [!] Import Error: {e}")
         sys.exit(1)
@@ -45,26 +49,27 @@ def verify():
     try:
         config_path = root_dir / "workflow_core" / "config"
         engine = RulesEngine(config_path)
-        
+
         # Test Case 1: #ML Tag
         role = engine.resolve_author_role("Service", ["ML"])
         print(f"   [x] Rule Check (#ML -> {role})")
         if role != "ML Engineer":
             print(f"       [!] Expected 'ML Engineer', got '{role}'")
             sys.exit(1)
-            
+
         # Test Case 2: Signal Service
         council = engine.resolve_council_set("Signal", [])
         print(f"   [x] Rule Check (Signal -> {council})")
         if council != "AlphaSquad":
             print(f"       [!] Expected 'AlphaSquad', got '{council}'")
             sys.exit(1)
-            
+
     except Exception as e:
         print(f"   [!] Rules Engine Logic Error: {e}")
         sys.exit(1)
-        
+
     print(">> Verification Successful.")
+
 
 if __name__ == "__main__":
     verify()

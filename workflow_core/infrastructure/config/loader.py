@@ -14,8 +14,10 @@
 
 import json
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 from pydantic import BaseModel, Field
+
 
 # Using Pydantic for Config Validation (Strong typing)
 class FlowConfig(BaseModel):
@@ -24,6 +26,7 @@ class FlowConfig(BaseModel):
     status_files: List[str]
     backup_count: int = 3
     strict_mode: bool = True
+
 
 class ConfigLoader:
     def __init__(self, config_root: Path):
@@ -43,7 +46,7 @@ class ConfigLoader:
             )
 
         try:
-            content = self.config_path.read_text(encoding='utf-8')
+            content = self.config_path.read_text(encoding="utf-8")
             data = json.loads(content)
             return FlowConfig(**data)
         except json.JSONDecodeError as e:

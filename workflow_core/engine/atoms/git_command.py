@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import subprocess
-from typing import Dict, Any
 from pathlib import Path
+from typing import Any, Dict
+
 
 def run(args: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -26,18 +27,15 @@ def run(args: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
     """
     action = args.get("action", "status")
     message = args.get("message", "chore: update")
-    files = args.get("files", ".") # Default stage all
-    
+    files = args.get("files", ".")  # Default stage all
+
     if action not in ["commit", "push", "commit_push", "status"]:
         return {"status": "FAILED", "message": f"Unknown Git Action: {action}"}
 
     # Helper to run git
     def git(*cmd_args):
         return subprocess.run(
-            ["git"] + list(cmd_args),
-            capture_output=True,
-            text=True,
-            check=False
+            ["git"] + list(cmd_args), capture_output=True, text=True, check=False
         )
 
     if action == "status":
@@ -50,13 +48,17 @@ def run(args: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
             git("add", *files)
         else:
             git("add", files)
-            
+
         # Commit
         # TODO: Inject Signed logic if needed
         res = git("commit", "-m", message)
         if res.returncode != 0 and "nothing to commit" not in res.stdout:
-             return {"status": "FAILED", "message": "Commit Failed", "stderr": res.stderr}
-        
+            return {
+                "status": "FAILED",
+                "message": "Commit Failed",
+                "stderr": res.stderr,
+            }
+
     if action in ["push", "commit_push"]:
         # Push
         res = git("push")

@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import sys
 from pathlib import Path
-import os
+
 
 def check_data_flow_exists():
     # Locate phase folder
@@ -28,7 +29,7 @@ def check_data_flow_exists():
         phase_dir = cwd / "design" / "roadmap" / "phases" / "phase5"
 
     target = phase_dir / "data_flow_map.md"
-    
+
     if target.exists():
         # Optional: Check content size or keywords?
         # Let's ensure it's not empty
@@ -42,6 +43,7 @@ def check_data_flow_exists():
         print(f"!! FAILURE: Missing {target}")
         print(f"!! Expected at: {target}")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(check_data_flow_exists())

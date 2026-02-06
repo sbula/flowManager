@@ -14,13 +14,16 @@
 
 import json
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Dict, Optional
+
 from pydantic import ValidationError
+
 from workflow_core.engine.schemas.models import WorkflowState
+
 
 class PersistenceManager:
     """Handles storage of flow state."""
-    
+
     def __init__(self, root_dir: Path):
         self.state_dir = root_dir / ".flow_state"
         self._ensure_dir()
@@ -38,7 +41,7 @@ class PersistenceManager:
         path = self._get_path(task_id)
         if not path.exists():
             return None
-            
+
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             return WorkflowState(**data)
@@ -50,7 +53,4 @@ class PersistenceManager:
 
     def save_state(self, state: WorkflowState):
         path = self._get_path(state.task_id)
-        path.write_text(
-            state.model_dump_json(indent=2),
-            encoding="utf-8"
-        )
+        path.write_text(state.model_dump_json(indent=2), encoding="utf-8")

@@ -14,9 +14,12 @@
 
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from pydantic import ValidationError
+
 from workflow_core.engine.schemas.models import WorkflowDefinition
+
 
 class WorkflowLoader:
     def __init__(self, config_root: Path):
@@ -29,7 +32,7 @@ class WorkflowLoader:
     def _build_index(self):
         """Scan all JSON files and map internal 'name' to file path."""
         if not self.workflows_dir.exists():
-             return
+            return
 
         for file_path in self.workflows_dir.rglob("*.json"):
             try:
@@ -38,7 +41,7 @@ class WorkflowLoader:
                     self._index[data["name"]] = file_path
                     # Also map filename stem as alias if unique
                     if file_path.stem not in self._index:
-                         self._index[file_path.stem] = file_path
+                        self._index[file_path.stem] = file_path
             except (json.JSONDecodeError, OSError):
                 continue
 
@@ -51,12 +54,12 @@ class WorkflowLoader:
 
         # Check Index
         if name not in self._index:
-             # Try mapping "Impl.Feature" -> "feature_impl" manually if needed, 
-             # but prefer the index finding "Impl.Feature" via internal name.
-             raise FileNotFoundError(f"Workflow config not found for: {name}")
+            # Try mapping "Impl.Feature" -> "feature_impl" manually if needed,
+            # but prefer the index finding "Impl.Feature" via internal name.
+            raise FileNotFoundError(f"Workflow config not found for: {name}")
 
         file_path = self._index[name]
-        
+
         try:
             data = json.loads(file_path.read_text(encoding="utf-8"))
             workflow = WorkflowDefinition(**data)

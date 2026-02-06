@@ -50,39 +50,22 @@ if [ -f "$TEST_SCRIPT" ]; then
     cd "$SERVICE_PATH"
 
     if [ "$CHECK_TYPE" == "complexity" ]; then
-        echo ">> [validate.sh] Running Complexity Analysis (Deep Scan)..."
+        echo ">> [validate.sh] Running Complexity Analysis (Lizard)..."
         
-        EXIT_CODE=0
-        if [ -f "pom.xml" ]; then
-            # Kotlin Logic
-            echo ">> [validate.sh] Running Custom Complexity Scan (Fallback)..."
-            KOTLIN_JSON="target/custom_complexity.json"
-            # Path to scripts relative to service dir? Best to use absolute or calculate backwards
-            # From root/services/service -> ../../workflow_core
-            WORKFLOW_SCRIPTS="../../workflow_core/scripts"
-            
-            python3 "$WORKFLOW_SCRIPTS/fallback_complexity.py" "." "$KOTLIN_JSON"
-            
-            echo ">> [validate.sh] Injecting Kotlin Metrics..."
-            # SILENCED: python3 "$WORKFLOW_SCRIPTS/inject_metrics.py" "../../design/roadmap/phases/phase5/reports/3_6_2_Review.md" "kotlin" "$KOTLIN_JSON"
-
-        elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
-             # Python Logic
-             echo ">> [validate.sh] Running Radon..."
-             if [ -f "pyproject.toml" ]; then
-                 poetry run radon cc . -j > radon.json || echo "{}" > radon.json
-             else
-                 radon cc . -j > radon.json || echo "{}" > radon.json
-             fi
-             RADON_REPORT="radon.json"
-             
-             WORKFLOW_SCRIPTS="../../workflow_core/scripts"
-             echo ">> [validate.sh] Injecting Python Metrics..."
-             # SILENCED: python3 "$WORKFLOW_SCRIPTS/inject_metrics.py" "../../design/roadmap/phases/phase5/reports/3_6_2_Review.md" "python" "$RADON_REPORT"
+        # Unified Multi-Language Scan (Python, Kotlin, etc.)
+        # Thresholds: CCN > 10, Length > 1000
+        if command -v poetry &> /dev/null && [ -f "pyproject.toml" ]; then
+             poetry run lizard . -C 10 -L 1000 -w
+        else
+             # Fallback if not poetry project (or lizard installed globally)
+             lizard . -C 10 -L 1000 -w
         fi
-
-        # Always return 0 for complexity check itself (it is reporting only)
-        exit 0
+        
+        # Always return 0 for reporting, unless lizard fails hard?
+        # -w causes exit 1 on violations.
+        # User wants "standard tests". Exit 1 is correct for Gates.
+        
+        exit $?
         
     else
         # Standard Delegation to test.sh (already inside service dir)

@@ -13,12 +13,15 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import List, Dict, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
+
 
 class StepType(str, Enum):
     ATOM = "atom"
     WORKFLOW = "workflow"
+
 
 class AtomType(str, Enum):
     RENDER_TEMPLATE = "Render_Template"
@@ -27,20 +30,29 @@ class AtomType(str, Enum):
     GIT_OPERATION = "Git_Operation"
     CHECK_CONDITION = "Check_Condition"
 
+
 class WorkflowStep(BaseModel):
     id: str = Field(..., description="Unique ID for this step within the workflow")
     type: StepType
     ref: str = Field(..., description="Reference name of the Atom or Workflow")
-    args: Dict[str, Any] = Field(default_factory=dict, description="Arguments overrides or context injection")
-    export: Optional[Dict[str, str]] = Field(default=None, description="Map internal output keys to global context keys")
-    instructions: Optional[str] = Field(default=None, description="Template for the Mission Brief")
+    args: Dict[str, Any] = Field(
+        default_factory=dict, description="Arguments overrides or context injection"
+    )
+    export: Optional[Dict[str, str]] = Field(
+        default=None, description="Map internal output keys to global context keys"
+    )
+    instructions: Optional[str] = Field(
+        default=None, description="Template for the Mission Brief"
+    )
     description: Optional[str] = None
+
 
 class WorkflowDefinition(BaseModel):
     name: str
     version: str = "1.0"
     steps: List[WorkflowStep]
     gating_policy: Optional[str] = "Sequential"
+
 
 class StateStatus(str, Enum):
     PENDING = "PENDING"
@@ -49,6 +61,7 @@ class StateStatus(str, Enum):
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
 
+
 class StepState(BaseModel):
     step_id: str
     status: StateStatus = StateStatus.PENDING
@@ -56,6 +69,7 @@ class StepState(BaseModel):
     error: Optional[str] = None
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
+
 
 class WorkflowState(BaseModel):
     task_id: str
