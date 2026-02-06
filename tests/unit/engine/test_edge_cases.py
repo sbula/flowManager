@@ -83,50 +83,39 @@ def test_t7_06_sigint_handling(valid_project):
 
 
 def test_t7_07_nested_resume(valid_project):
-    """T7.07 Nested Resume."""
+    """T7.07 Nested Resume (Fractal Zoom / Russian Doll)."""
     os.chdir(valid_project)
 
-    # 1. Setup Deep Hierarchy
-    # Root -> A -> B -> C (Pending)
-    status_content = """
-- [ ] Root
-    - [ ] A
-        - [ ] B
-            - [ ] C
-"""
+    # 1. Setup Fractal Hierarchy (Refs)
+    # Root -> A.md -> B.md
+
+    # Root
     (valid_project / ".flow" / "status.md").write_text(
-        status_content.strip(), encoding="utf-8"
+        "- [/] Phase 1 @ a.md\n", encoding="utf-8"
+    )
+
+    # A.md (Sub-flow)
+    (valid_project / ".flow" / "a.md").write_text(
+        "- [/] Phase 2 @ b.md\n", encoding="utf-8"
+    )
+
+    # B.md (Leaf flow) - Active Task Here
+    # Note: Indent level 0 for root of sub-file
+    (valid_project / ".flow" / "b.md").write_text(
+        "- [/] Target Task\n", encoding="utf-8"
     )
 
     engine = Engine()
     engine.hydrate()
 
-    # 2. Run
-    # Should find C as the first pending task depth-first?
-    # Logic: find_first_pending traverses DFS.
-    # Root (Pending) -> A (Pending) -> B -> C.
-    # The first pending task encountered in DFS is "Root".
-    # Wait, Smart Resume looks for *Active* first. If no active, it picks *First Pending*.
-    # If I want to test "Resume", I should have an Active task deep down.
-
-    status_active = """
-- [ ] Root
-    - [ ] A
-        - [ ] B
-            - [/] C
-"""
-    (valid_project / ".flow" / "status.md").write_text(
-        status_active.strip(), encoding="utf-8"
-    )
-    engine = Engine()  # Reload
-    engine.hydrate()
-
-    # find_active_task should return C
+    # 2. Find Active Task
+    # Should recurse status.md -> a.md -> b.md -> Target Task
     active = engine.find_active_task()
-    assert active is not None, "No active task found"
-    assert (
-        active.name == "C"
-    ), f"Expected C, got {active.name} with status {active.status}"
+
+    assert active is not None
+    assert active.name == "Target Task"
+    # Verify it loaded the deep one
+    # (Checking name is enough if unique)
 
 
 def test_t7_08_disk_full_panic_save(valid_project):

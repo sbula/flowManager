@@ -154,27 +154,19 @@ def test_t2_07_metadata_false_context(tmp_path):
     # Or implies logic checks for " <!-- type: flow --> " at END of string?
     # Spec says "Input: <!-- type: flow --> inside a Python string".
     # Implementation of dispatch usually checks `if "<!-- type: flow -->" in task.name`.
-    # Current implementation is NAIVE (checks substring).
-    # If we want to support this test, we must IMPROVE implementation to be strict.
-    # For V1.3, let's assert current behavior (Naive) OR fix it.
-    # User Spec: Expect "Dispatch IGNORING the false flag".
-
-    # CASE: Name is "Print '<!-- type: flow -->'" (Not a metadata tag, but content)
-    # If naive, it will match.
-    # We should enforce that metadata is at the END of the line or distinct?
-    # "Sub Flow <!-- type: flow -->" works.
-    # "print('<!-- type: flow -->')" should NOT work.
+    # Current implementation is STRICT (Regex checks boundaries).
+    # Task Name: "print('<!-- type: flow -->')"
+    # Regex: (?:^|\s)<!-- type: flow -->(?:$|\s)
+    # The quotes "'" are not whitespace, so it should NOT match.
 
     task = Task(
         id="1", name="print('<!-- type: flow -->')", status="pending", indent_level=0
     )
 
-    # If dispatch returns FlowEngineAtom, test FAILS (false positive).
-    # If dispatch returns Manual (no match), test PASSES.
-
+    # Dispatch should fall back to Manual (No match)
     atom = engine.dispatch(task)
-    # Ideally should NOT be FlowEngineAtom
     assert atom.__class__.__name__ != "FlowEngineAtom"
+    assert isinstance(atom, ManualInterventionAtom)
 
 
 def test_t2_08_registry_case_sensitivity(tmp_path):

@@ -137,9 +137,16 @@ class StatusParser:
                     continue
                 parsing_headers = False
 
+            # 1.5 Comment Stripping
+            if line.strip().startswith("<!--"):
+                continue
+
             # 2. Task Parsing
-            task_match = self._match_task_line(line, i)
-            indent_level, status, name, ref = self._extract_task_data(task_match, i)
+            task_data = self._try_parse_task_data(line, i)
+            if not task_data:
+                continue
+
+            indent_level, status, name, ref = task_data
 
             # 3. ID Generation
             task_id = self._generate_next_id(indent_level)
@@ -169,6 +176,20 @@ class StatusParser:
         # So we should move cycle detection to load() or keep it separate.
         # `load` knows the file path.
         return tree
+
+    def _try_parse_task_data(self, line: str, line_idx: int) -> Optional[tuple]:
+        """Attempts to parse a task line. Returns None if it should be skipped (Note)."""
+        try:
+            task_match = self._match_task_line(line, line_idx)
+            return self._extract_task_data(task_match, line_idx)
+        except StatusParsingError:
+            stripped = line.lstrip()
+            # Ambiguity Gap Fix: If line starts with "-", but isn't a task:
+            # 1. If it has a bracket "[", assume it's a broken task (Raise).
+            # 2. If no bracket, assume it's a Description/Note (Skip).
+            if stripped.startswith("-") and "[" not in stripped:
+                return None
+            raise
 
     def _validate_cycles(self, tasks: List[Task], visited: set[Path]):
         print(f"DEBUG: Validating cycles. Visited: {[p.name for p in visited]}")
@@ -278,8 +299,15 @@ class StatusParser:
                 f"Line {line_idx}: Jailbreak attempt detected in path '{ref}'"
             )
 
-        bad_protocols = ["http", "https", "ftp", "javascript", "file", "data"]
+        # Block dangerous protocols
+        # We explicitly block script-execution vectors.
+        # Note: We do NOT strictly ban http/https here because users might want logic-less links,
+        # but the integrity check will fail if they try to activate them as files.
+        bad_protocols = ["javascript", "vbscript", "data", "file"]
         if any(ref.lower().startswith(p + ":") for p in bad_protocols):
+            # Exception for Windows Drive letters (e.g. C:\...) which technically start with 'c:'
+            # But wait, paths must be relative! So absolute paths like C:\ are arguably invalid too.
+            # However, for now we strictly block the script protocols.
             is_win = len(ref) > 1 and ref[1] == ":" and "\\" in ref
             if not is_win:
                 raise StatusParsingError(

@@ -1,6 +1,8 @@
 import importlib
 import json
 import os
+import signal
+import sys
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional
@@ -34,6 +36,14 @@ class Engine:
         while True:
             candidate = current / ".flow"
 
+            # T1.08: Strict Resolution (Detect Symlink Loops)
+            try:
+                if candidate.exists():
+                    candidate = candidate.resolve(strict=True)
+            except (RuntimeError, OSError):
+                # RecursionError or Loop
+                raise RootNotFoundError("Symlink loop detected during hydration.")
+
             # T1.09: If .flow exists but is a file -> CRASH.
             if candidate.exists() and not candidate.is_dir():
                 raise RootNotFoundError(
@@ -61,7 +71,7 @@ class Engine:
         from flow.domain.persister import StatusPersister
 
         self.persister = StatusPersister(self.flow_dir)
-        self.context: Dict[str, Any] = {}
+        self.context: Dict[str, Any] = {"__root__": self.root}
 
     def _load_registry(self):
         reg_file = self.flow_dir / "flow.registry.json"
@@ -76,8 +86,29 @@ class Engine:
             if not isinstance(data, dict):
                 raise RegistryError("Invalid Registry: Root must be a dictionary.")
             self.registry_map = data
+            self._validate_registry_integrity()
         except json.JSONDecodeError:
             raise RegistryError("Invalid JSON in flow.registry.json")
+
+    def _validate_registry_integrity(self):
+        """Paranoid check: Ensure all registered atoms are importable."""
+        from flow.engine.atoms import Atom
+
+        for atom_name, class_path in self.registry_map.items():
+            try:
+                module_name, class_name = class_path.rsplit(".", 1)
+                module = importlib.import_module(module_name)
+                atom_class = getattr(module, class_name)
+
+                if not issubclass(atom_class, Atom):
+                    # It's importable but not an Atom
+                    raise RegistryError(
+                        f"Atom '{atom_name}' ({class_path}) is not a subclass of Atom."
+                    )
+
+            except (ImportError, AttributeError, ValueError) as e:
+                # Catch ValueError if rsplit fails (bad format)
+                raise RegistryError(f"Registry Integrity Failed for '{atom_name}': {e}")
 
     def get_atom_class(self, atom_name: str) -> str:
         """
@@ -106,8 +137,9 @@ class Engine:
         import re
 
         # T2.01 Explicit Metadata Match
-        # Policy: Must be at end of string or exact match
-        if task.name.strip().endswith("<!-- type: flow -->"):
+        # Policy: Must be distinct tag.
+        # Regex: Start/Space + Tag + Space/End
+        if re.search(r"(?:^|\s)<!-- type: flow -->(?:$|\s)", task.name):
             from flow.engine.atoms import FlowEngineAtom
 
             return FlowEngineAtom()
@@ -177,32 +209,88 @@ class Engine:
     def find_active_task(self) -> Optional["Task"]:
         """
         Finds the 'active' task.
-        If none active, implements Smart Resume (find first pending).
+        Recursive Logic for Fractal Zoom (T7.07).
         """
         tree = self.load_status()
+        return self._recursive_find_active(tree, self.root)
 
-        # 1. Check for Explicit Active
-        # StatusTree has helper?
+    def _recursive_find_active(
+        self, tree: "StatusTree", current_root: Path
+    ) -> Optional["Task"]:
+        """
+        Helper that traverses sub-flows (Fractal Zoom).
+        """
+        # 1. Check current tree for active
         active = tree.find_active_task()
         if active:
+            # Check if this active task is a Proxy for a Sub-Flow
+            if active.ref and active.ref.endswith(".md"):
+                # Load Sub-Flow
+                # T1.03 Path Resolution Safety
+                from flow.domain.parser import StatusParser
+                from flow.engine.security import SafePath
+
+                try:
+                    # Path is relative to .flow root of current context?
+                    # Actually refs are relative to .flow/
+                    # If we are in root/.flow/status.md, ref="sub.md" -> root/.flow/sub.md
+
+                    # But if we are in a sub-flow?
+                    # Standard: All refs relative to project .flow/ root?
+                    # OR relative to the file defining them?
+                    # Spec V1.2. Says "Anchor Rule: All paths relative to .flow/"
+
+                    sub_path = SafePath(self.flow_dir, active.ref)
+                    if sub_path.exists():
+                        sub_parser = StatusParser(
+                            self.root
+                        )  # Parser needs project root to find .flow
+                        # Manually load specific file? StatusParser.load() takes filename.
+                        # active.ref is filename relative to .flow/
+                        sub_tree = sub_parser.load(active.ref)
+                        sub_tree._reindex()
+
+                        # Recurse
+                        deep_active = self._recursive_find_active(sub_tree, self.root)
+                        if deep_active:
+                            return deep_active
+
+                        # If sub-flow has no active task, but parent is active?
+                        # Fallback to smart resume in sub-flow?
+
+                        # If sub-flow is DONE, then we shouldn't be here (Parent should be done).
+                        # If sub-flow is PENDING, we should start it.
+
+                        first_pending = self._find_first_pending(sub_tree.root_tasks)
+                        if first_pending:
+                            return first_pending
+
+                        # If no pending in sub-flow? Then it's done?
+                        # Then Parent should move to Done?
+                        # Manual intervention needed if state mismatch.
+                        return active
+
+                except Exception:
+                    # If sub-flow fails load, return the proxy task itself?
+                    # Or crash?
+                    # Return proxy task so we can maybe run it (or fail running it)
+                    pass
+
             return active
 
-        # 2. Smart Resume (First Pending)
-        # We need to traverse the tree.
-        # StatusTree might not have a flat list, but recursive.
-        # T3.01: "Selects 2nd task" (first pending).
+        # 2. Smart Resume (First Pending) in CURRENT tree
+        # Only if we are at the ROOT level (recursion depth 0, or caller handles it?)
+        # Logic: If no active task in Root, start first pending.
+        return self._find_first_pending(tree.root_tasks)
 
-        # Simple traversal helper
-        def find_first_pending(tasks):
-            for t in tasks:
-                if t.status == "pending":
-                    return t
-                res = find_first_pending(t.children)
-                if res:
-                    return res
-            return None
-
-        return find_first_pending(tree.root_tasks)
+    def _find_first_pending(self, tasks):
+        for t in tasks:
+            if t.status == "pending":
+                return t
+            res = self._find_first_pending(t.children)
+            if res:
+                return res
+        return None
 
     def run_task(self, task: "Task"):
         """
@@ -215,7 +303,10 @@ class Engine:
         self._validate_hydration()
 
         try:
-            # 1. Acquire Lock & Check Circuit Breaker
+            # 1. Register Signals (T7.06)
+            self._register_signal_handlers(task)
+
+            # 2. Acquire Lock & Check Circuit Breaker
             self._handle_lock_acquisition_safely(task)
 
             # 2. Execute Task
@@ -224,7 +315,26 @@ class Engine:
         except Exception as e:
             self._handle_crash(task, e)
         finally:
+            # Restore signal handlers? (For now, process exits anyway)
             self._release_intent_lock()
+
+    def _register_signal_handlers(self, task):
+        # T7.06 SIGINT Handling
+        def handler(signum, frame):
+            print(f"\nCaught signal {signum}. Saving state and exiting...")
+            try:
+                if task:
+                    self._handle_crash(
+                        task, InterruptedError("Process Interrupted by User")
+                    )
+                else:
+                    sys.exit(1)
+            except Exception:
+                sys.exit(1)
+
+        signal.signal(signal.SIGINT, handler)
+        # Also handle SIGTERM?
+        signal.signal(signal.SIGTERM, handler)
 
     def _validate_hydration(self):
         if not self.root:
@@ -254,8 +364,12 @@ class Engine:
         raise SystemExit(1)
 
     def _execute_task_lifecycle(self, task):
+        import types
+
         # Update State -> Active
         self.context["__task_id__"] = task.id
+        self.context["__task_name__"] = task.name
+        self.context["__task_ref__"] = task.ref
         tree = self.load_status()
         tree.update_task(task.id, status="active")
         self.persister.save(tree)
@@ -263,11 +377,23 @@ class Engine:
         # Dispatch
         atom = self.dispatch(task)
 
-        # Run
-        result = atom.run(self.context)
+        # Run with Immutable Context (T3.12)
+        # Atoms receive a Read-Only view to prevent side-channel corruption.
+        read_only_context = types.MappingProxyType(self.context)
+        result = atom.run(read_only_context)
 
         # Merge Context
         if result and result.success and result.exports:
+            # T3.10: Validate Serialization Safety
+            # Ensure exports don't contain non-serializable objects (sockets, files)
+            # that would crash the persistence layer later.
+            try:
+                json.dumps(result.exports)
+            except (TypeError, OverflowError) as e:
+                # If non-serializable, we treat this as a Safety Violation (Error)
+                # We do NOT merge the exports.
+                raise RuntimeError(f"Atom returned non-serializable exports: {e}")
+
             self.context.update(result.exports)
 
         # Update State -> Done

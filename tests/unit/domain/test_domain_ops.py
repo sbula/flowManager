@@ -236,25 +236,49 @@ def test_t4_09_find_active_op():
 
 # --- T4.18 Cycle Detection ---
 def test_t4_18_cycle_detection():
-    # Pydantic prevents recursive models in basic usage, but list reference cycle is possible.
-    tree = create_tree()
-    a = tree.find_task("1")
-
     # Manual Cycle Injection (Bypassing Ops)
-    # a.children.append(a)
-    # Persister should blow up or Model should prevent?
-    # Since Add Task creates NEW task, we can't use Domain Ops to create cycle.
-    # Ops are safe. This test verifies Ops don't allow "Move logic" that causes cycles.
-    # Since we don't have "Move Task" op yet, this is implicitly passed by design.
-    pass
+    # a.children.append(a) -> This creates recursion bomb for pydantic repr if not careful.
+    # We simulate a "safe" cycle for detection: A -> B -> A
+
+    # Create simple structure
+    t = StatusTree()
+    a = Task(id="1", name="A", status="pending", indent_level=0)
+    b = Task(id="1.1", name="B", status="pending", indent_level=1)
+
+    # Link A -> B
+    a.children.append(b)
+    b.parent = a
+    t.root_tasks.append(a)
+
+    # Link B -> A (Cycle)
+    b.children.append(a)
+    # Note: Pydantic might complain on serialization, but object graph exists in memory.
+
+    # Verify Cycle logic
+    with pytest.raises(ValueError, match="Cycle detected"):
+        t.validate_consistency()
 
 
 # --- T4.19 Deep State Validation (Manual) ---
 def test_t4_19_deep_state_check():
-    # If we add a Task object directly (not name), we need validation.
-    # models.py add_task only accepts name.
-    # So "Active Orphan" injection is impossible via add_task (T4.13 checks name/status).
-    # If passing parent_id as Task object?
-    # Ops API uses IDs.
-    # So strictly compliant.
-    pass
+    """Verify T3.11 Logic Conflict (Deep Injection)."""
+    # 1. Manual Injection: Done Parent, Pending Child
+    t = StatusTree()
+    p = Task(id="1", name="P", status="done", indent_level=0)
+    c = Task(id="1.1", name="C", status="pending", indent_level=1)
+    p.children.append(c)
+    c.parent = p
+    t.root_tasks.append(p)
+
+    with pytest.raises(ValueError, match="Logic Conflict"):
+        t.validate_consistency()
+
+    # 2. Add Task Prevention (The change we just made to models.py)
+    t2 = StatusTree()
+    # Add Done Root
+    t2.add_task(parent_id="root", name="DoneRoot", status="done")
+    t2._reindex()
+
+    # Try adding Pending Child
+    with pytest.raises(StateError, match="Cannot add pending child"):
+        t2.add_task(parent_id="1", name="PendingChild", status="pending")

@@ -236,8 +236,6 @@ def test_t3_11_logic_conflict_save(temp_flow):
 
     persister = StatusPersister(temp_flow)
 
-    # Currently implementation doesn't validate on save.
-    # We should add self._validate_tree(tree.root_tasks) to Persister.save()?
-    # Or assume Domain Ops did their job?
-    # Spec T3.11 requires it.
-    pass
+    # Now it MUST raise ValueError because we added validation to save()
+    with pytest.raises(ValueError, match="Logic Conflict"):
+        persister.save(t, "corrupt.md")

@@ -28,6 +28,7 @@ class StatusPersister:
             self._create_backup(full_path)
 
         # 2. Serialize & Write Atomically
+        tree.validate_consistency()  # Enforce Strictly (T3.11)
         content = self._serialize(tree)
 
         # Ensure parent exists

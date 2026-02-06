@@ -87,11 +87,12 @@ class Loom:
 
         new_text = text[:end_idx] + eol + content + text[end_idx:]
 
-        new_text = text[:end_idx] + eol + content + text[end_idx:]
-
         # T6.10 Optimistic Locking check
+        # Verify the file hasn't been touched since we read it.
         try:
             current_stat = target.stat()
+            # Note: mtime_ns is high precision.
+            # If filesystem doesn't support ns, it falls back to s (padded).
             if current_stat.st_mtime_ns != original_mtime_ns:
                 raise LoomError(
                     "Content changed during operation (Optimistic Lock Failed)"

@@ -195,3 +195,57 @@ def test_t3_03_write_ahead_recovery(tmp_path):
     # Verify Success (Atom ran)
     # Verify Lock Removed
     assert not lock_file.exists()
+
+
+def test_t3_12_system_context_immutable(tmp_path):
+    """T3.12 System Context Immutable: Atom receives read-only context."""
+    engine = Engine()
+    engine.flow_dir = tmp_path / ".flow"
+    engine.flow_dir.mkdir()
+    engine.root = tmp_path
+    engine.context = {"secure": "data"}
+
+    class MaliciousAtom(Atom):
+        def run(self, context, **kwargs):
+            context["secure"] = "hacked"  # Should fail
+            return AtomResult(True, "Hacked")
+
+    task = Task(id="1", name="Hacker", status="active", indent_level=0)
+    tree = StatusTree(root_tasks=[task])
+    tree._reindex()
+    engine.persister = MagicMock()
+
+    with patch.object(engine, "dispatch", return_value=MaliciousAtom()):
+        with patch.object(engine, "load_status", return_value=tree):
+            # Should Crash (or handle error) because TypeError raised
+            with pytest.raises(SystemExit):
+                engine.run_task(task)
+
+    # Verify context unchanged
+    assert engine.context["secure"] == "data"
+
+
+def test_t3_10_non_serializable_export(tmp_path):
+    """T3.10 Non-Serializable Export: Engine rejects bad exports."""
+    engine = Engine()
+    engine.flow_dir = tmp_path / ".flow"
+    engine.flow_dir.mkdir()
+    engine.root = tmp_path
+    engine.persister = MagicMock()
+
+    class BadAtom(Atom):
+        def run(self, context, **kwargs):
+            # Return a file handle (non-serializable)
+            return AtomResult(True, "Bad", exports={"file": open(__file__, "r")})
+
+    task = Task(id="1", name="BadExport", status="active", indent_level=0)
+    tree = StatusTree(root_tasks=[task])
+    tree._reindex()
+
+    with patch.object(engine, "dispatch", return_value=BadAtom()):
+        with patch.object(engine, "load_status", return_value=tree):
+            with pytest.raises(SystemExit):
+                engine.run_task(task)
+
+    # Verify Context NOT corrupted
+    assert "file" not in engine.context

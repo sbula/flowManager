@@ -61,11 +61,8 @@ def test_t6_10_optimistic_locking(tmp_path):
     # Current Loom doesn't check mtime.
     # It just overwrites.
     # T6.10 Spec: "If file changed between read and write..."
-    # Implementation: `Loom.insert` reads, processes, writes.
-    # To test race, we mock `read_text` to return content,
-    # then modify file on disk, then `write_text` happens.
-    # If standard IO, last write wins.
-    # This test documents CURRENT behavior (Last Write Wins).
+    # Implementation: `Loom.insert` reads, processes, checks mtime, then writes.
+    # This test verifies that if mtime changes, Loom raises LoomError.
 
     f = tmp_path / "race.py"
     f.write_text("anchor", encoding="utf-8")

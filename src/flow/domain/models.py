@@ -136,6 +136,13 @@ class StatusTree(BaseModel):
             if parent_id is None:
                 raise ValueError("parent_id cannot be None")
             parent = self.find_task(parent_id)
+
+            # T3.11 Prevention: Cannot add Pending/Active child to Done parent
+            if parent.status == "done" and status not in ["done", "skipped", "error"]:
+                raise StateError(
+                    f"Cannot add {status} child '{name}' to Done parent '{parent.name}'."
+                )
+
             new_task.parent = parent
             new_task.indent_level = parent.indent_level + 1
 
@@ -279,3 +286,57 @@ class StatusTree(BaseModel):
             if child:
                 return child
         return None
+
+    # --- Validation ---
+
+    def validate_consistency(self):
+        """
+        Deep validation of the tree.
+        1. Cycle Detection (T4.18)
+        2. State Consistency (T3.11)
+        """
+        # 1. Cycle Detection
+        visited = set()
+        self._check_cycles(self.root_tasks, visited, path=set())
+
+        # 2. State Logic
+        self._check_state_logic(
+            self.root_tasks, parent_status="active"
+        )  # Root is effectively active/open
+
+    def _check_cycles(self, tasks: List[Task], visited: set, path: set):
+        for task in tasks:
+            if id(task) in path:
+                raise ValueError(f"Cycle detected in task structure: '{task.name}'")
+            if id(task) in visited:
+                continue
+
+            visited.add(id(task))
+            path.add(id(task))
+
+            if task.children:
+                self._check_cycles(task.children, visited, path)
+
+            path.remove(id(task))
+
+    def _check_state_logic(self, tasks: List[Task], parent_status: str):
+        """
+        Enforces Strict Hierarchy:
+        - If Parent is DONE, Children MUST be DONE (or Skipped/Error).
+           - Exception: Implementation gap? If parent forced done, children might remain pending?
+           - Spec T5.02 says Auto-Complete bubbles UP.
+           - Spec T2.06 says "Parent [x], Child [ ]" is a Logic Conflict.
+        """
+        for task in tasks:
+            # T2.06 / T3.11 Conflict Check
+            if parent_status == "done" and task.status not in [
+                "done",
+                "skipped",
+                "error",
+            ]:
+                raise ValueError(
+                    f"Logic Conflict: Parent is Done but Child '{task.name}' is {task.status}."
+                )
+
+            if task.children:
+                self._check_state_logic(task.children, parent_status=task.status)

@@ -255,11 +255,13 @@ def test_t2_03_indent_error_tab(flow_env):
 
 
 def test_t2_04_syntax_error(flow_env):
-    """T2.04 Syntax Error: Missing brackets."""
+    """T2.04 Syntax Robustness: Ignores non-task bullet points."""
     p = flow_env / FLOW_DIR_NAME / "status.md"
     p.write_text("- Just Text", encoding="utf-8")
-    with pytest.raises(StatusParsingError):
-        StatusParser(flow_env).load()
+    # Old behavior: raised StatusParsingError
+    # New behavior: Ignores line (Robustness)
+    tree = StatusParser(flow_env).load()
+    assert len(tree.root_tasks) == 0
 
 
 def test_t2_05_unknown_marker(flow_env):
@@ -342,13 +344,14 @@ def test_t2_11_keyword_ambiguity(flow_env):
 
 def test_t2_12_path_protocol_safety(flow_env):
     """T2.12 Path Protocol Safety: malicious schemes."""
-    p = flow_env / FLOW_DIR_NAME / "status.md"
-    p.write_text("- [ ] Malicious @ javascript:alert(1)", encoding="utf-8")
+    p_js = flow_env / FLOW_DIR_NAME / "status_js.md"
+    p_js.write_text("- [ ] Malicious @ javascript:alert(1)", encoding="utf-8")
 
-    # Parser should probably catch this?
-    # Current implementation check: regex captures ref.
-    # Logic: StatusParser._parse_content -> T2.10 check ("..") -> T2.12 check?
-    # I need to ensure StatusParser HAS this logic or add it.
-    # The spec says "Raises ValidationError".
     with pytest.raises(StatusParsingError, match="Invalid Protocol"):
-        StatusParser(flow_env).load()
+        StatusParser(flow_env).load("status_js.md")
+
+    p_vbs = flow_env / FLOW_DIR_NAME / "status_vbs.md"
+    p_vbs.write_text("- [ ] Malicious @ vbscript:exec", encoding="utf-8")
+
+    with pytest.raises(StatusParsingError, match="Invalid Protocol"):
+        StatusParser(flow_env).load("status_vbs.md")
