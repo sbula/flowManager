@@ -357,6 +357,7 @@ class Engine:
             raise
 
     def _handle_circuit_breaker(self, task):
+        print(f"FATAL: Circuit Breaker Triggered for Task {task.id}", file=sys.stderr)
         tree = self.load_status()
         tree.update_task(task.id, status="error")
         self.persister.save(tree)
@@ -401,7 +402,7 @@ class Engine:
         self.persister.save(tree)
 
     def _handle_crash(self, task, e):
-        print(f"CRASH: {e}")
+        print(f"CRASH: {e}", file=sys.stderr)
         try:
             tree = self.load_status()
             tree.update_task(task.id, status="error")

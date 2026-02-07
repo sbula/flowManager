@@ -322,13 +322,20 @@ class StatusTree(BaseModel):
     def _check_state_logic(self, tasks: List[Task], parent_status: str):
         """
         Enforces Strict Hierarchy:
-        - If Parent is DONE, Children MUST be DONE (or Skipped/Error).
-           - Exception: Implementation gap? If parent forced done, children might remain pending?
-           - Spec T5.02 says Auto-Complete bubbles UP.
-           - Spec T2.06 says "Parent [x], Child [ ]" is a Logic Conflict.
+        1. Sibling Exclusivity: Only one task can be active among siblings.
+        2. Parent Constraints:
+           - If Parent is DONE, Children MUST be DONE (or Skipped/Error).
+           - If Parent is PENDING, Children CANNOT be ACTIVE.
         """
+        # 1. Sibling Exclusivity
+        active_siblings = [t.name for t in tasks if t.status == "active"]
+        if len(active_siblings) > 1:
+            raise ValueError(
+                f"Ambiguous Focus: Multiple active siblings found: {active_siblings}"
+            )
+
         for task in tasks:
-            # T2.06 / T3.11 Conflict Check
+            # 2. Parent Conflict (Done Parent)
             if parent_status == "done" and task.status not in [
                 "done",
                 "skipped",
@@ -336,6 +343,13 @@ class StatusTree(BaseModel):
             ]:
                 raise ValueError(
                     f"Logic Conflict: Parent is Done but Child '{task.name}' is {task.status}."
+                )
+
+            # 3. Parent Conflict (Pending Parent)
+            # Exception: Root level (parent_status="active" passed by caller)
+            if parent_status == "pending" and task.status == "active":
+                raise ValueError(
+                    f"Logic Conflict: Child '{task.name}' is active but Parent is pending."
                 )
 
             if task.children:

@@ -100,7 +100,13 @@ class StatusPersister:
             indent = "    " * task.indent_level
 
             # Marker Normalization
-            marker_map = {"pending": " ", "active": "/", "done": "x", "skipped": "-"}
+            marker_map = {
+                "pending": " ",
+                "active": "/",
+                "done": "x",
+                "skipped": "-",
+                "error": "-",
+            }
             marker_char = marker_map.get(task.status, " ")
             marker = f"[{marker_char}]"
 
