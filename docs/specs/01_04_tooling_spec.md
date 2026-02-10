@@ -13,6 +13,40 @@ To avoid confusion in the fractal architecture:
 *   **Atom**: The fundamental, indivisible unit of execution within the Flow Engine (e.g., `Manifest_Parse`, `Template_Render`). Flows are composed of Atoms and other Flows. Atoms are internal optimization primitives.
 *   **Tool**: A secure, user-facing capability exposed to an Agent (e.g., `read_file`, `run_test`). Tools are standardized interfaces (MCP-compatible) that may wrap one or more Atoms but enforce **Security Policies** (Scope, Redaction, Rate Limiting).
 
+### 1.3 Fractal Lifecycle (Deep Resumption)
+Since Workflows are fractal (Flows within Flows), the Lifecycle Management must be recursive.
+*   **Stack Tracing**: The Engine maintains a `call_stack` (e.g., `[ParentFlow:Step3, ChildFlow:Step9]`).
+*   **Immutability**: Completed steps in the stack are effectively "baked". Resumption relies on the state cache of the parent to restore context for the child.
+
+### 1.3.1 Deep Resume Schema (Stack Persistence)
+To support reliable crash recovery, the `call_stack` is persisted to `state/stack.json` after every atomic step.
+
+```json
+{
+  "task_id": "1.2.3",
+  "stack": [
+    {
+       "step_id": "root_flow",
+       "instruction_pointer": 3,
+       "local_vars": { "target": "service_a" }
+    },
+    {
+       "step_id": "child_flow_b",
+       "instruction_pointer": 1,
+       "local_vars": { "retry_count": 0 }
+    }
+  ],
+  "checksum": "sha256:..."
+}
+```
+
+### 1.3.2 Process Supervision (The "Zombie" Killer)
+*   **Problem**: Helper processes (e.g., `npm`, `cargo`, `LSP servers`) can become orphaned if the Engine crashes.
+*   **Mechanism**: The Engine spawns all children via a **Supervisor Interface** (`ProcessManager`).
+    *   **Job Objects (Windows)** / **cgroups (Linux)**: All children are attached to a kernel-level job object.
+    *   **Fate Sharing**: If the Engine process dies, the OS Kernel automatically terminates the entire job group.
+    *   **Cleanup Hook**: On graceful `SIGTERM`, the Supervisor explicitly sends `SIGKILL` to stubborn children.
+
 ### 1.2 Security Philosophy
 We adhere to a **Paranoid Security Model**:
 1.  **Deny by Default**: Agents start with zero permissions.
@@ -37,6 +71,12 @@ class Tool(ABC):
     
     def call(self, args: Dict, context: ToolContext) -> ToolResult:
         ...
+
+### 2.1.1 Tool Execution Policy (Global Exception Handler)
+To prevent "Exception Leaking" (where a tool crash brings down the agent), the Executor wraps **ALL** tool calls in a fast-fail block:
+1.  **Catch All**: `try/except Exception` matches all non-system errors.
+2.  **Log**: Full stack trace is logged to `debug.log` (not user stream).
+3.  **Return**: A structured `ToolResult(status="error", error={"code": "InternalError", "message": "..."})` is returned to the Agent, allowing it to self-correct or ask for help.
 ```
 
 ### 2.2 Standardized Result Schema (`ToolResult`)
@@ -59,7 +99,8 @@ To ensure Agents can recover from errors, all tools return a standard structure:
 ```
 
 ### 2.3 The Tool Context (`ToolContext`)
-The `ToolContext` is injected by the Engine at runtime. It contains:
+The `ToolContext` is injected by the Engine at runtime. It is **Immutable** and **Thread-Local** to ensure no leakage between parallel agents.
+It contains:
 *   `service_root` (Path): The root directory of the **Active Service** (e.g., `services/trade-engine/`).
 *   `isolation_level` (Enum): `STRICT` (default) or `SHARED`.
 *   `allowed_commands` (List[str]): Whitelisted commands for this specific task.
@@ -96,6 +137,7 @@ A unified suite of functions for file system interaction.
 | `search_file` | `path`, `regex`, `recursive` | Grep-like search. Returns snippets. | **Service Scope Check** |
 | `count_matches` | `path`, `regex`, `recursive` | Returns count of pattern matches. **Crucial for verifying uniqueness before edit.** | **Service Scope Check** |
 | `list_files` | `path`, `recursive` | Lists directory contents. | **Service Scope Check** |
+| `create_directory` | `path`, `exist_ok` (bool) | Creates a directory structure. | **Service Scope Check** |
 | `delete_file` | `path` | Deletes a file. | **Strict Whitelist** (No `rm -rf`) |
 
 ### 3.2 Surgical Editing (`edit_file`)
@@ -123,14 +165,23 @@ Powered by the **Loom Engine**, this tool allows precise code modification using
 3.  **AST** (Future): Uses `ast-grep` patterns like `function $NAME($ARGS) { $$$ }`.
 
 #### Safety Pattern: "Atomic Uniqueness"
-The `edit_file` tool **internally** counts matches *before* applying edits. If `match_count != count`, the entire operation aborts. This prevents "blind" editing.
+The `edit_file` tool **internally** counts matches *before* applying edits.
+*   **Exact Count**: If `match_count != count` (default 1), the operation aborts. "Near miss" or "Ambiguous multiple match" scenarios are rejected to prevent code injection in the wrong location.
+*   **Idempotency**: The tool returns success (no-op) if the *replacement* content is already present and the *target* is absent (preventing double-apply errors).
 
 ### 3.2.1 Operational Semantics (Loom Logic)
 *   **Concurrency**: Implements **Advisory File Locking**.
     *   *Rent*: Before reading/editing, Loom acquires an exclusive lock (`.lock.filename`) with a 5s timeout.
     *   *Return*: Lock is released immediately after write.
     *   *Failure*: If lock acquisition fails, the tool errors with `ResourceBusy`.
-    *   *Stale Lock Policy*: If a lock file is older than 30 seconds (e.g., agent crashed), it is considered **Stale**. The next operation forces the lock (deletes old lock, logs warning, acquires new lock).
+    *   **Stale Lock Policy**: Lock files include `pid` and `timestamp`.
+        *   If `pid` is dead (checked via `psutil`), lock is broken immediately.
+        *   If `timestamp` > 30s (Time-to-Live), lock is broken (assumed zombie).
+*   **Atomic Write Guarantee**:
+    *   To prevent data corruption (e.g. disk full mid-write), `write_file` and `edit_file` use the **Write-Replace Pattern**:
+    1.  Write content to `filename.tmp.uuid`.
+    2.  `fsync()` to ensure bits are on disk.
+    3.  `os.replace(tmp, filename)` (Atomic Switch).
 *   **Conflict Resolution**:
     *   *Overlap*: If multiple edits target overlapping line ranges, the operation is **rejected**.
     *   *Order*: Edits are applied transactionally. Either all succeed, or none.
