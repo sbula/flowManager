@@ -12,7 +12,7 @@ def SafePath(root: Path, path: str) -> Path:
     1. Must be relative (no absolute paths).
     2. Must be within root (no .. traversal).
     3. Must not be a reserved device name (Windows).
-    4. Must not use unsafe protocols (handled by parser, but good double check).
+    4. Must not use unsafe protocols.
     5. Symlinks must resolve to within root.
     """
 
@@ -24,7 +24,8 @@ def SafePath(root: Path, path: str) -> Path:
     # Enforce basic sanity limit to prevent DOS/Buffer issues
     if len(path) > 4096:  # Linux max
         raise SecurityError("Path too long")
-    if os.name == "nt" and len(path) > 255:  # Windows classic max for component/path
+    # Windows classic max for component/path
+    if os.name == "nt" and len(path) > 255:
         raise SecurityError("Path too long for Windows portability")
 
     # Rule 1: No Absolute Paths
@@ -43,8 +44,6 @@ def SafePath(root: Path, path: str) -> Path:
         raise SecurityError(f"OS Error resolving path: {e}")
 
     # Rule 2: Jailbreak (Common Prefix Check)
-    # On Windows, resolve() lowercases strict comparisons sometimes? No, Python 3 Path implementation is good.
-    # But strict containment check:
     try:
         target.relative_to(resolved_root)
     except ValueError:
@@ -53,11 +52,8 @@ def SafePath(root: Path, path: str) -> Path:
         )
 
     # Rule 5: Symlink Escape check
-    # resolve() follows symlinks. If the FINAL target is outside, checks above catch it.
-    # But what if intermediate is a symlink to outside?
-    # e.g. root/link_to_etc -> /etc. Link is inside, target is outside.
-    # .resolve() handles this by resolving the final path.
-    # So `target.relative_to(root)` checks if the *result* is inside. Correct.
+    # resolve() follows symlinks. If the FINAL target is outside,
+    # checks above catch it.
 
     return target
 

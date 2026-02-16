@@ -42,7 +42,7 @@ class EventBus:
 
             try:
                 # Ensure artifacts dir exists (H1 or auto-create?)
-                # Spec says H1: Root exists. Artifacts should be there or created.
+                # Spec says H1: Root exists. Artifacts should be there.
                 if not self.artifacts_dir.exists():
                     self.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -51,7 +51,7 @@ class EventBus:
             except OSError as e:
                 # T5.05 Blob Write Failure -> Warning, No Crash.
                 # Fallback: Truncate inline or embed error?
-                # Spec: "Warning logged, Event emitted with Payload truncated or Error."
+                # Spec: "Warning logged, Event emitted with Payload truncated."
                 # Let's keep a small error payload.
                 final_payload = {
                     "error": "Blob Write Failed",
@@ -59,7 +59,11 @@ class EventBus:
                     "details": str(e),
                 }
 
-        event = Event(type=event_type, payload=final_payload, metadata=metadata or {})
+        event = Event(
+            type=event_type,
+            payload=final_payload,
+            metadata=metadata or {}
+        )
         self._log(event)
         return event
 

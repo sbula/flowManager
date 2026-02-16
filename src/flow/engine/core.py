@@ -5,9 +5,9 @@ import signal
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional, Any
 
-from flow.engine.atoms import Atom, FlowEngineAtom, ManualInterventionAtom
+from flow.engine.atoms import Atom, ManualInterventionAtom
 from flow.engine.models import RegistryError, RootNotFoundError
 
 if TYPE_CHECKING:
@@ -42,7 +42,9 @@ class Engine:
                     candidate = candidate.resolve(strict=True)
             except (RuntimeError, OSError):
                 # RecursionError or Loop
-                raise RootNotFoundError("Symlink loop detected during hydration.")
+                raise RootNotFoundError(
+                    "Symlink loop detected during hydration."
+                )
 
             # T1.09: If .flow exists but is a file -> CRASH.
             if candidate.exists() and not candidate.is_dir():
@@ -62,7 +64,9 @@ class Engine:
             current = parent
 
         if not found:
-            raise RootNotFoundError(f"No .flow/ directory found starting from {cwd}")
+            raise RootNotFoundError(
+                f"No .flow/ directory found starting from {cwd}"
+            )
 
         # Load Registry
         self._load_registry()
@@ -76,15 +80,17 @@ class Engine:
     def _load_registry(self):
         reg_file = self.flow_dir / "flow.registry.json"
         if not reg_file.exists():
-            # T7.03 implies empty config handling if empty file, but if missing?
-            # Start with empty.
+            # T7.03 implies empty config handling if empty file,
+            # but if missing? Start with empty.
             self.registry_map = {}
             return
 
         try:
             data = json.loads(reg_file.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
-                raise RegistryError("Invalid Registry: Root must be a dictionary.")
+                raise RegistryError(
+                    "Invalid Registry: Root must be a dictionary."
+                )
             self.registry_map = data
             self._validate_registry_integrity()
         except json.JSONDecodeError:
@@ -103,12 +109,15 @@ class Engine:
                 if not issubclass(atom_class, Atom):
                     # It's importable but not an Atom
                     raise RegistryError(
-                        f"Atom '{atom_name}' ({class_path}) is not a subclass of Atom."
+                        f"Atom '{atom_name}' ({class_path}) "
+                        f"is not a subclass of Atom."
                     )
 
             except (ImportError, AttributeError, ValueError) as e:
                 # Catch ValueError if rsplit fails (bad format)
-                raise RegistryError(f"Registry Integrity Failed for '{atom_name}': {e}")
+                raise RegistryError(
+                    f"Registry Integrity Failed for '{atom_name}': {e}"
+                )
 
     def get_atom_class(self, atom_name: str) -> str:
         """
@@ -116,7 +125,9 @@ class Engine:
         Does NOT import it yet (that's Execution phase).
         """
         if atom_name not in self.registry_map:
-            raise RegistryError(f"Atom '{atom_name}' not found in registry.")
+            raise RegistryError(
+                f"Atom '{atom_name}' not found in registry."
+            )
         return self.registry_map[atom_name]
 
     def dispatch(self, task) -> "Atom":
@@ -126,13 +137,6 @@ class Engine:
         1. Metadata <!-- type: flow -->
         2. Registry Match [AtomName]
         3. Fallback -> ManualInterventionAtom
-
-        Logic:
-        - Parse name for [Atom] tag using regex.
-        - Look up class in registry.
-        - Import class.
-        - Verify subclass Atom.
-        - Instantiate.
         """
         import re
 
@@ -146,7 +150,7 @@ class Engine:
 
         # 2. Registry Match (T2.02)
         # Regex to find [AtomName] at start of string
-        # T2.08: Case Sensitivity? Registry keys are usually PascalCase or specific.
+        # T2.08: Case Sensitivity? Registry keys are usually PascalCase.
         # T2.10: Invisible Character Dispatch (Normalization)
         # Remove zero-width spaces (\u200b) etc.
         clean_name = task.name.replace("\u200b", "").strip()
@@ -179,7 +183,9 @@ class Engine:
                     # Catch everything to ensure Dispatch Safety (T2.04/T2.05)
                     import sys
 
-                    sys.stderr.write(f"DEBUG: Import Failed for {atom_key}: {e}\n")
+                    sys.stderr.write(
+                        f"DEBUG: Import Failed for {atom_key}: {e}\n"
+                    )
                     import traceback
 
                     traceback.print_exc(file=sys.stderr)
@@ -233,35 +239,32 @@ class Engine:
                 try:
                     # Path is relative to .flow root of current context?
                     # Actually refs are relative to .flow/
-                    # If we are in root/.flow/status.md, ref="sub.md" -> root/.flow/sub.md
-
-                    # But if we are in a sub-flow?
-                    # Standard: All refs relative to project .flow/ root?
-                    # OR relative to the file defining them?
-                    # Spec V1.2. Says "Anchor Rule: All paths relative to .flow/"
-
                     sub_path = SafePath(self.flow_dir, active.ref)
                     if sub_path.exists():
                         sub_parser = StatusParser(
                             self.root
                         )  # Parser needs project root to find .flow
-                        # Manually load specific file? StatusParser.load() takes filename.
-                        # active.ref is filename relative to .flow/
+                        # Manually load specific file?
                         sub_tree = sub_parser.load(active.ref)
                         sub_tree._reindex()
 
                         # Recurse
-                        deep_active = self._recursive_find_active(sub_tree, self.root)
+                        deep_active = self._recursive_find_active(
+                            sub_tree, self.root
+                        )
                         if deep_active:
                             return deep_active
 
                         # If sub-flow has no active task, but parent is active?
                         # Fallback to smart resume in sub-flow?
 
-                        # If sub-flow is DONE, then we shouldn't be here (Parent should be done).
+                        # If sub-flow is DONE, then we shouldn't be here
+                        # (Parent should be done).
                         # If sub-flow is PENDING, we should start it.
 
-                        first_pending = self._find_first_pending(sub_tree.root_tasks)
+                        first_pending = self._find_first_pending(
+                            sub_tree.root_tasks
+                        )
                         if first_pending:
                             return first_pending
 
@@ -273,13 +276,14 @@ class Engine:
                 except Exception:
                     # If sub-flow fails load, return the proxy task itself?
                     # Or crash?
-                    # Return proxy task so we can maybe run it (or fail running it)
+                    # Return proxy task so we can maybe run it
                     pass
 
             return active
 
         # 2. Smart Resume (First Pending) in CURRENT tree
-        # Only if we are at the ROOT level (recursion depth 0, or caller handles it?)
+        # Only if we are at the ROOT level
+        # (recursion depth 0, or caller handles it?)
         # Logic: If no active task in Root, start first pending.
         return self._find_first_pending(tree.root_tasks)
 
@@ -357,7 +361,10 @@ class Engine:
             raise
 
     def _handle_circuit_breaker(self, task):
-        print(f"FATAL: Circuit Breaker Triggered for Task {task.id}", file=sys.stderr)
+        print(
+            f"FATAL: Circuit Breaker Triggered for Task {task.id}",
+            file=sys.stderr
+        )
         tree = self.load_status()
         tree.update_task(task.id, status="error")
         self.persister.save(tree)
@@ -386,14 +393,16 @@ class Engine:
         # Merge Context
         if result and result.success and result.exports:
             # T3.10: Validate Serialization Safety
-            # Ensure exports don't contain non-serializable objects (sockets, files)
-            # that would crash the persistence layer later.
+            # Ensure exports don't contain non-serializable objects
+            # (sockets, files) that would crash the persistence layer later.
             try:
                 json.dumps(result.exports)
             except (TypeError, OverflowError) as e:
-                # If non-serializable, we treat this as a Safety Violation (Error)
+                # If non-serializable, we treat this as a Safety Violation
                 # We do NOT merge the exports.
-                raise RuntimeError(f"Atom returned non-serializable exports: {e}")
+                raise RuntimeError(
+                    f"Atom returned non-serializable exports: {e}"
+                )
 
             self.context.update(result.exports)
 
@@ -430,7 +439,7 @@ class Engine:
                         return
 
                     # 2. Check WAL Recovery (Same Task, Crashed)
-                    # If task_id matches, we assume we are retrying a crashed task
+                    # If task_id matches, we assume we are retrying a crashed
                     if lock_data.get("task_id") == task_id:
                         retry_count = lock_data.get("retry_count", 0) + 1
 
@@ -439,7 +448,8 @@ class Engine:
                             from flow.engine.models import CircuitBreakerError
 
                             raise CircuitBreakerError(
-                                f"Task {task_id} failed {retry_count} times. Giving up."
+                                f"Task {task_id} failed {retry_count} times. "
+                                f"Giving up."
                             )
 
                     # 3. Check Stale Lock (Zombie Stealing T3.11)

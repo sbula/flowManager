@@ -1,0 +1,27 @@
+{
+    "knowledge": {
+        "embedding_provider": "gemini",
+        "embedding_model": "models/embedding-001",
+        "profiles": {
+            "default": {
+                "provider": "gemini",
+                "model": "gemini-1.5-flash"
+            },
+            "coding": {
+                "provider": "anthropic",
+                "model": "claude-3-5-sonnet-20240620",
+                "temperature": 0.1
+            },
+            "reasoning": {
+                "provider": "ollama",
+                "model": "deepseek-r1:7b",
+                "api_base": "http://localhost:11434"
+            },
+            "decisions": {
+                "provider": "openai",
+                "model": "o1-mini",
+                "description": "Used for analyzing ADRs and architectural consistency"
+            }
+        }
+    }
+}

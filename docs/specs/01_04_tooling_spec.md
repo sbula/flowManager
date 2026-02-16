@@ -256,13 +256,11 @@ Example Query: *"How do I implement the Event Bus?"*
 *   **Source**: Indexes `docs/specs`, `src/core`, and `tests/`.
 *   **Privacy**: RAG queries are local; no data leaves the environment.
 
-### 5.3 Incremental Indexing & Cold Start
-1.  **Manifest**: System maintains `rag_manifest.json` mapping `file_path -> sha256_hash`.
-2.  **Cold Start Mitigation**:
-    *   Base Docker images ship with **Pre-Computed Indexes** for standard libraries and stable core modules.
-    *   Only the *delta* (current project changes) needs to be indexed on startup.
-3.  **Delta Indexing**: Only files with changed hashes are re-embedded and upserted to Vector DB.
-4.  **Bootstrap**: If no manifest exists (fresh clone), a full background index is triggered. Agent is warned "Knowledge Base Building..." and may experience reduced recall for ~2 minutes.
+### 5.2 RAG Context
+Example Query: *"How do I implement the Event Bus?"*
+*   **Source**: Indexes `docs/specs`, `src/core`, and `tests/`.
+*   **Privacy**: RAG queries are local; no data leaves the environment.
+*   **Architecture**: See **`01_06_rag_spec.md`** for Ingestion, Indexing, and Cold Start strategies.
 
 ---
 

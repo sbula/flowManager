@@ -15,7 +15,8 @@ except ImportError:
 
 class AtomResult:
     def __init__(
-        self, success: bool, message: str, exports: Optional[Dict[str, Any]] = None
+        self, success: bool, message: str,
+        exports: Optional[Dict[str, Any]] = None
     ):
         self.success = success
         self.message = message
@@ -36,7 +37,9 @@ class ManualInterventionAtom(Atom):
     def run(
         self, context: Dict[str, Any], task_name: str = "Unknown", **kwargs
     ) -> AtomResult:
-        return AtomResult(False, f"Manual Intervention Required for task: {task_name}")
+        return AtomResult(
+            False, f"Manual Intervention Required for task: {task_name}"
+        )
 
 
 class FlowEngineAtom(Atom):
@@ -66,16 +69,21 @@ class LoomAtom(Atom):
         ref = context.get("__task_ref__")
 
         if not root:
-            return AtomResult(False, "Root context missing. Cannot initialize Loom.")
+            return AtomResult(
+                False, "Root context missing. Cannot initialize Loom."
+            )
         if not ref:
             return AtomResult(
-                False, "LoomAtom requires a 'ref' pointing to an operation JSON file."
+                False,
+                "LoomAtom requires a 'ref' pointing to an operation JSON file."
             )
 
         try:
             data = self._load_op_data(root, ref)
             if not data:
-                return AtomResult(False, f"Operation file not found or invalid: {ref}")
+                return AtomResult(
+                    False, f"Operation file not found or invalid: {ref}"
+                )
 
             return self._execute_op(root, data)
 
@@ -99,7 +107,9 @@ class LoomAtom(Atom):
         target_file = data.get("path")
 
         if not op or not target_file:
-            return AtomResult(False, "Invalid Op JSON: Missing 'op' or 'path'.")
+            return AtomResult(
+                False, "Invalid Op JSON: Missing 'op' or 'path'."
+            )
 
         loom = Loom(project_root=root)
 
@@ -116,7 +126,56 @@ class LoomAtom(Atom):
         position = data.get("position", "after")
 
         if not anchor or content is None:
-            return AtomResult(False, "Insert op requires 'anchor' and 'content'.")
+            return AtomResult(
+                False, "Insert op requires 'anchor' and 'content'."
+            )
 
         loom.insert(target_file, anchor, content, position)
         return AtomResult(True, f"Inserted content into {target_file}")
+
+
+class RagRetrievalAtom(Atom):
+    """
+    Atom for querying the Knowledge System (RAG).
+    Wraps KnowledgeService.ask().
+    """
+    
+    def run(self, context: Dict[str, Any], **kwargs) -> AtomResult:
+        query = context.get("query")
+        profile = context.get("profile", "default")
+        include_decisions = context.get("include_decisions", True)
+        
+        if not query:
+            return AtomResult(False, "Query is required for RagRetrievalAtom.")
+            
+        try:
+            # Lazy import to avoid circular dependencies or import errors if dependencies missing
+            from workflow_core.knowledge.service import KnowledgeService
+            
+            # Load config - logic similar to CLI but needs to be robust 
+            # Ideally context contains a reference to config or service, 
+            # but for now we load from standard location or assume initialized?
+            # Atoms usually run inside an Engine that might have config.
+            # Using standard load for now.
+            config_path = Path("flow_config.json").resolve()
+            if not config_path.exists():
+                return AtomResult(False, "flow_config.json not found.")
+
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                
+            service = KnowledgeService(config.get("knowledge", {}))
+            
+            # Execute Query
+            # Service.ask returns the answer string initially. 
+            # We might want struct result later.
+            answer = service.ask(query, profile=profile)
+            
+            return AtomResult(
+                True, 
+                "Retrieval Successful", 
+                exports={"answer": answer}
+            )
+            
+        except Exception as e:
+            return AtomResult(False, f"RAG Error: {str(e)}")

@@ -312,6 +312,24 @@
                     }
                 ]
             }
+        },
+        "Knowledge": {
+            "Ask": {
+                "TaskSet": "KnowledgeQuery",
+                "ExpertSet": "ExecutionCore",
+                "Description": "Query the Knowledge Base",
+                "steps": [
+                    {
+                        "type": "atom",
+                        "atom": "RagRetrievalAtom",
+                        "args": {
+                            "query": "{query}",
+                            "profile": "{profile}",
+                            "include_decisions": "{include_decisions}"
+                        }
+                    }
+                ]
+            }
         }
     },
     "Snippets": {
