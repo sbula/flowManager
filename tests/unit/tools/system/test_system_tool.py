@@ -1,7 +1,7 @@
 import pytest
 import subprocess
 from unittest.mock import patch
-from src.flow.tools.system_tool import SystemTool
+from src.flow.tools.system import SystemTool
 from src.flow.tools.base import ToolContext, ToolResult
 
 @pytest.fixture

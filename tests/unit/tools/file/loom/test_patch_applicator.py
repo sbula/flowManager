@@ -1,6 +1,6 @@
 import pytest
 import os # Missing import fix
-from src.flow.tools.loom.patch_applicator import PatchApplicator
+from src.flow.tools.file.loom.patch_applicator import PatchApplicator
 from src.flow.tools.base import ToolError
 
 @pytest.fixture

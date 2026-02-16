@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from src.flow.tools.file_tool import FileTool
+from src.flow.tools.file import FileTool
 from src.flow.tools.base import ToolContext, ToolError
 
 @pytest.fixture
@@ -45,7 +45,7 @@ def test_edit_file_regex(file_tool, context, tmp_path):
 
 def test_lock_manager_pid_check(tmp_path):
     """T2.03: Verify stale lock recovery via PID check."""
-    from src.flow.tools.loom.lock_manager import LockManager
+    from src.flow.tools.file.loom.lock_manager import LockManager
     from unittest.mock import patch
     
     manager = LockManager(timeout_seconds=30)
@@ -70,7 +70,7 @@ def test_lock_manager_pid_check(tmp_path):
 
 def test_lock_manager_pid_alive_contention(tmp_path):
     """T2.04: Verify active lock contention (PID Alive)."""
-    from src.flow.tools.loom.lock_manager import LockManager
+    from src.flow.tools.file.loom.lock_manager import LockManager
     from unittest.mock import patch
     from src.flow.tools.base import ToolError
 

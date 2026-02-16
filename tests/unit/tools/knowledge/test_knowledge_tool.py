@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from src.flow.tools.knowledge_tool import KnowledgeTool
+from src.flow.tools.knowledge import KnowledgeTool
 from src.flow.tools.base import ToolContext, ToolResult
 
 @pytest.fixture

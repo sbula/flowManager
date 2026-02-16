@@ -3,7 +3,7 @@ import time
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-from src.flow.tools.loom.lock_manager import LockManager
+from src.flow.tools.file.loom.lock_manager import LockManager
 from src.flow.tools.base import ToolError
 
 @pytest.fixture

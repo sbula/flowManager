@@ -4,7 +4,7 @@ import sys
 import time
 import os
 import psutil
-from src.flow.tools.win32_job import WindowsJobObject
+from src.flow.tools.shell.win32_job import WindowsJobObject
 
 @pytest.mark.skipif(os.name != 'nt', reason="Windows Job Objects only on NT")
 def test_job_object_kills_child_on_close():

@@ -5,7 +5,7 @@ from pathlib import Path
 from contextlib import contextmanager
 from typing import Optional, Generator
 
-from ..base import ToolError
+from src.flow.tools.base import ToolError
 
 logger = logging.getLogger(__name__)
 

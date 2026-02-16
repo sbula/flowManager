@@ -3,12 +3,12 @@ import subprocess
 import threading
 import time
 from unittest.mock import MagicMock, patch
-from src.flow.tools.shell_tool import ShellTool
+from src.flow.tools.shell import ShellTool
 from src.flow.tools.base import ToolContext
 
 @pytest.fixture
 def mock_job_object():
-    with patch("src.flow.tools.win32_job.WindowsJobObject") as mock:
+    with patch("src.flow.tools.shell.win32_job.WindowsJobObject") as mock:
         yield mock
 
 @pytest.fixture
