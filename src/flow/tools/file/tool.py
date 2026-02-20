@@ -189,9 +189,13 @@ class FileTool(Tool):
         # 2. Blocked Pattern Check
         # Check against BLOCKED_PATTERNS
         rel_path = str(target_path.relative_to(base_path)).replace("\\", "/")
+        norm_path = rel_path.lower() if os.name == 'nt' else rel_path
+
         for pattern in self.BLOCKED_PATTERNS:
-            if pattern in rel_path or (
-                pattern.endswith("/") and pattern[:-1] in rel_path.split("/")
+            p = pattern.lower() if os.name == 'nt' else pattern
+            
+            if p in norm_path or (
+                p.endswith("/") and p[:-1] in norm_path.split("/")
             ):
                 raise ToolError(f"Blocked file pattern: {path_str}",
                                 code="SecurityError")

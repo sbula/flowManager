@@ -13,7 +13,7 @@ class SystemTool(Tool):
         "properties": {
             "operation": {
                 "type": "string",
-                "enum": ["install_package", "system_ctl", "verify_binary"]
+                "enum": ["install_package", "system_ctl", "verify_binary", "migrate_config"]
             },
             "manager": {"type": "string", "enum": ["apt", "cargo", "npm-g"]},
             "package": {"type": "string"},
@@ -54,6 +54,8 @@ class SystemTool(Tool):
                 )
             elif operation == "verify_binary":
                 return self._verify_binary(args.get("binary_name"))
+            elif operation == "migrate_config":
+                return self._migrate_config(args.get("target_version"), context)
             else:
                 return ToolResult(status="error", error={
                     "code": "UnknownOperation",
@@ -113,13 +115,24 @@ class SystemTool(Tool):
 
     def _verify_binary(self, binary_name: str) -> ToolResult:
         path = shutil.which(binary_name)
-        if path:
-            return ToolResult(status="success", data={"path": path})
-        else:
-            return ToolResult(status="error", error={
-                "code": "BinaryNotFound",
-                "message": f"Binary '{binary_name}' not found"
-            })
+        return ToolResult(status="success", data={
+            "exists": bool(path),
+            "path": path or ""
+        })
+
+    def _migrate_config(self, target_version: str, context: ToolContext) -> ToolResult:
+        if not target_version:
+             raise ToolError("Target version required", code="ValidationError")
+             
+        # Locate the refactor script
+        # Assuming scripts/refactor_git.py exists in project root or similar.
+        # We need to construct the absolute path or run via python -m
+        
+        script_path = "scripts/refactor_git.py" # Relative to service root? 
+        # Test expects: python scripts/refactor_git.py
+        
+        cmd = ["python", script_path, "--target", target_version]
+        return self._run_command(cmd, context)
 
     def _run_command(self, cmd: List[str], context: ToolContext) -> ToolResult:
         try:

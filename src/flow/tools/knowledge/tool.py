@@ -11,7 +11,16 @@ class RagClientStub:
     def get_status(self) -> Dict[str, Any]:
         return {"status": "ready"}
 
-    def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    def get_related_tests(self, file_path: str) -> List[str]:
+        return []
+
+    def generate_map(self, root_dir: str = None) -> Dict[str, Any]:
+        return {"services": [], "infrastructure": []}
+
+    def get_task_context(self, task_id: str) -> Dict[str, Any]:
+        return {"phase": "Unknown", "task": task_id}
+        
+    def find_usage(self, symbol: str) -> List[Dict[str, Any]]:
         return []
 
 
@@ -23,11 +32,15 @@ class KnowledgeTool(Tool):
         "properties": {
             "operation": {
                 "type": "string",
-                "enum": ["search_knowledge", "check_status", "find_usage"]
+                "enum": ["search_knowledge", "check_status", "find_usage", 
+                         "get_related_tests", "get_system_map", "get_task_context"]
             },
             "query": {"type": "string"},
             "limit": {"type": "integer"},
-            "symbol": {"type": "string"}
+            "symbol": {"type": "string"},
+            "file_path": {"type": "string"},
+            "root_dir": {"type": "string"},
+            "task_id": {"type": "string"}
         },
         "required": ["operation"]
     }
@@ -50,8 +63,26 @@ class KnowledgeTool(Tool):
                 results = self._client.search(query, args.get("limit", 5))
                 return ToolResult(status="success", data={"results": results})
             elif operation == "find_usage":
-                # Stub implementation
-                return ToolResult(status="success", data={"usages": []})
+                symbol = args.get("symbol")
+                if not symbol:
+                    raise ToolError("Symbol name required", code="ValidationError")
+                usages = self._client.find_usage(symbol)
+                return ToolResult(status="success", data={"usages": usages})
+            elif operation == "get_related_tests":
+                file_path = args.get("file_path")
+                if not file_path:
+                    raise ToolError("File path required", code="ValidationError")
+                tests = self._client.get_related_tests(file_path)
+                return ToolResult(status="success", data={"tests": tests})
+            elif operation == "get_system_map":
+                sys_map = self._client.generate_map(args.get("root_dir"))
+                return ToolResult(status="success", data={"map": sys_map})
+            elif operation == "get_task_context":
+                task_id = args.get("task_id")
+                if not task_id:
+                     raise ToolError("Task ID required", code="ValidationError")
+                ctx = self._client.get_task_context(task_id)
+                return ToolResult(status="success", data={"context": ctx})
             else:
                 return ToolResult(status="error", error={
                     "code": "UnknownOperation",

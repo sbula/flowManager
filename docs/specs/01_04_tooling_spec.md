@@ -260,7 +260,7 @@ Example Query: *"How do I implement the Event Bus?"*
 Example Query: *"How do I implement the Event Bus?"*
 *   **Source**: Indexes `docs/specs`, `src/core`, and `tests/`.
 *   **Privacy**: RAG queries are local; no data leaves the environment.
-*   **Architecture**: See **`01_06_rag_spec.md`** for Ingestion, Indexing, and Cold Start strategies.
+*   **Architecture**: See **`../architecture/rag_architecture.md`** (was `rag_system_design.md`) for Ingestion, Indexing, and Cold Start strategies.
 
 ---
 

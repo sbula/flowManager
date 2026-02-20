@@ -317,9 +317,10 @@ Consolidated Structure: 8 Chapters (Security, Loom, Shell, Knowledge, System, Re
 *   **T8.02 Case Sensitivity Conflict**:
     *   Input: `read_file("Makefile")` when disk has `makefile`.
     *   Expect:
-        *   Linux: `FileNotFoundError`.
-        *   Windows: Returns content.
+        *   Linux: `FileNotFoundError` (Case Sensitive) or `Success` (if file exists exactly).
+        *   Windows: Returns content (Case Insensitive).
         *   **Requirement**: Tooling must warn if multiple files match case-insensitively (ambiguity check).
+        *   **Verified in**: `tests/unit/tools/file/test_file_tool_platform_constraints.py`
 *   **T8.03 Locked File Editing**:
     *   Input: `edit_file` on a file locked by Excel/Word/Notepad.
     *   Expect: `ResourceBusyError`. Content is untouched.

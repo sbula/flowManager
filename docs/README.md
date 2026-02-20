@@ -3,30 +3,41 @@
 ## 📚 Overview
 The Flow Manager is a configuration-driven orchestration engine designed for fractal planning and high-assurance software development.
 
+## 🚀 Getting Started
+**👉 [Start Here: Master Overview](00_MASTER_OVERVIEW.md)**
+Executive summary, core concepts (Fractal, Agents), and system map.
+
 ## 📂 Documentation Structure
-The documentation is organized into three sections:
+The documentation is organized into four sections:
 
-### 1. Protocols (`docs/protocols/`)
-**The Reference Manual.** Describes the mechanics of the V-Next engine.
-*   [Agent Orchestration](protocols/01_Agent_Orchestration.md): How agents, personas, and templates interact.
-*   [Flow Engine](protocols/02_Flow_Engine.md): Architecture of the state machine and executor.
-*   [Cognitive Layer](protocols/03_Cognitive_Layer.md): Context injection and RAG strategies.
-*   [Tooling System](protocols/04_Tooling_System.md): Interface for CLI and sandboxed execution.
-*   [Lifecycle Management](protocols/05_Lifecycle_Management.md): Process lifecycle and error handling.
+### 1. Plans & Status (`docs/plans/`)
+**The Roadmap.** Active execution plans and project dashboard.
+*   [Project Status](plans/STATUS.md): **Live Dashboard**.
+*   [Current Sprint](plans/current_sprint.md): V-Next Implementation Plan.
+*   [Roadmap](plans/roadmap_2026.md): Long-term vision.
 
-### 2. Analysis (`docs/analysis/`)
-**The "Why".** Deep dives into architectural decisions and visionary concepts.
-*   [Fractal Workflow Design](analysis/fractal_workflow_design.md): The L1-L5 recursive planning model.
-*   [Agent Isolation](analysis/agent_isolation.md): Architecture for preventing context leaks between agents.
-*   [V-Next Proposal](analysis/v_next_architecture_proposal.md): Comprehensive architectural review and V-Next proposal.
-*   [V-Next Implementation Plan](analysis/v_next_implementation_plan.md): The execution roadmap (Phase 1 Python + Test Gaps).
-*   [Language Strategy](analysis/language_strategy_python_vs_rust.md): Decision logic for Python vs Rust.
-*   [RAG System Design](analysis/rag_system_design.md): Design for the retrieval-augmented generation layer.
-*   [Roadmap](analysis/roadmap.md): Future recommendations and refactoring path.
+### 2. Specifications (`docs/specs/`)
+**The "Law".** Authoritative, testable requirements.
+*   [Status Domain](specs/01_02_status_domain_spec.md): The "Database" behavior.
+*   [Engine Core](specs/01_03_engine_core_spec.md): The Runtime behavior.
+*   [Tooling](specs/01_04_tooling_spec.md): The Tool interfaces and Security.
+*   [Agent Orchestration](specs/01_10_agent_orchestration_spec.md): How agents and personas interact.
+*   [LLM Binding](specs/01_05_llm_binding_spec.md): Unified LLM Interface.
+*   [RAG System](specs/01_06_rag_spec.md): Knowledge System Specs.
 
-### 3. Archive (`docs/archive/`)
-**Legacy Context.** Previous assessments and historical analysis.
-*   Contains V7/V8 assessments and older implementation plans.
+### 2. Architecture (`docs/architecture/`)
+**The "Map".** High-level design patterns and concepts.
+*   [Fractal Patterns](architecture/fractal_patterns.md): The L1-L5 recursive planning model.
+*   [RAG Architecture](architecture/rag_architecture.md): Design for the retrieval-augmented generation layer.
+*   [Agent Isolation](analysis/agent_isolation.md): preventing context leaks. (To be moved?)
+
+### 3. Analysis (`docs/analysis/`)
+**The "Why".** Decision logs and trade-off studies.
+*   [Language Strategy](analysis/language_strategy_python_vs_rust.md): Python vs Rust decision.
+*   [V-Next Implementation Plan](analysis/v_next_implementation_plan.md): Execution roadmap.
+
+### 4. Archive (`docs/archive/`)
+**Legacy Context.** Old drafts and protocols.
 
 ## 🚀 Getting Started
-To understand the system, we recommend reading `protocols/02_Flow_Engine.md` first.
+Start with the **Specs** to understand the requirements, then read **Architecture** for the big picture.

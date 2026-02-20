@@ -124,28 +124,6 @@ def test_git_push_rbac_allow(shell_tool, release_manager_context):
 
 def test_run_command_timeout(shell_tool, context):
     """T7.14: Verify command timeout."""
-    # We need to mock Popen to simulate a hanging process, and time.time to simulate passage of time.
-    
-    with patch("subprocess.Popen") as mock_popen, \
-         patch("time.time") as mock_time, \
-         patch("time.sleep") as mock_sleep:
-         
-        # 1. Setup Hanging Process
-        process = MagicMock()
-        process.poll.return_value = None # Never finishes
-        process.stdout = MagicMock()
-        process.stdout.read.return_value = "" # No output, but doesn't close (empty str usually means EOF, but let's assume it hangs differently or threads stay alive? 
-        # Actually, if read returns "", loop breaks, thread finishes.
-        # We need read to BLOCK or return "something" continually? 
-        # Or faster: The loop checks "if t_out.is_alive()". 
-        # If we make read() blocking (side_effect that sleeps?), the thread is alive.
-        # BUT we can't easily block in a mock without blocking the test runner if we join.
-        # 
-        # SIMPLER APPROACH: Mock the threads!
-        # ShellTool creates execution threads. If we mock threading.Thread, we can control "is_alive".
-        
-        pass
-
     # Retry with Thread Mocking approach which is cleaner for white-box testing the loop
     with patch("subprocess.Popen") as mock_popen, \
          patch("threading.Thread") as mock_thread_cls, \

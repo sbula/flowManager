@@ -52,7 +52,10 @@ class ShellTool(Tool):
             elif operation == "git_status":
                 return self._run_git(["status"], context)
             elif operation == "git_diff":
-                return self._run_git(["diff"], context)
+                cmd = ["diff"]
+                if args.get("staged"):
+                    cmd.append("--staged")
+                return self._run_git(cmd, context)
             elif operation == "git_add":
                 files = args.get("files", [])
                 if not files:
