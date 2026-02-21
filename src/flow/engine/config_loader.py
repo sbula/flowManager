@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -10,15 +10,13 @@ class ConfigLoader:
     """
     Loads project configuration from .flow/config.json.
     """
+
     DEFAULT_CONFIG = {
         "security": {
             "isolation_level": "STRICT",
             "allowed_tools": ["all"],
         },
-        "limits": {
-            "max_file_size": 1024 * 1024 * 5,  # 5MB
-            "timeout_seconds": 300
-        }
+        "limits": {"max_file_size": 1024 * 1024 * 5, "timeout_seconds": 300},  # 5MB
     }
 
     def load_config(self, project_root: Path) -> Dict[str, Any]:

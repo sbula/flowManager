@@ -1,9 +1,12 @@
 import pytest
+
 from workflow_core.knowledge.ingestion.splitter import CodeSplitter
+
 
 @pytest.fixture
 def splitter():
     return CodeSplitter()
+
 
 def test_split_python_simple(splitter):
     code = """
@@ -19,6 +22,7 @@ class MyClass:
     assert "def foo():" in chunks[0]
     assert "class MyClass:" in chunks[1]
 
+
 def test_split_python_decorated(splitter):
     code = """
 @decorator
@@ -28,6 +32,7 @@ def foo():
     chunks = splitter.split_text(code, "python")
     assert len(chunks) == 1
     assert "@decorator" in chunks[0]
+
 
 def test_split_unsupported(splitter):
     code = "just some text"

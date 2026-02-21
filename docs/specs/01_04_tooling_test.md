@@ -129,9 +129,7 @@ Consolidated Structure: 8 Chapters (Security, Loom, Shell, Knowledge, System, Re
 *   **T4.03 RAG Search (Scope)**:
     *   Input: `search_knowledge("Event Bus")`.
     *   Expect: Results from `docs/` and `src/core` only (Privacy scope).
-*   **T4.04 RAG Cold Start**:
-    *   Input: First run, index missing.
-    *   Expect: Returns "Indexing in progress..." or partial results. Does not crash.
+
 
 ## 5. System & Configuration
 *   **T5.01 Migrate Config**:

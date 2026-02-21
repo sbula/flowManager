@@ -1,19 +1,20 @@
-import sys
 import argparse
+import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 # Ensure project root is in sys.path
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
 try:
-    from flow.engine.core import Engine
     from flow.domain.models import Task
+    from flow.engine.core import Engine
 except ImportError:
     # Fallback for direct execution
     sys.path.append(str(Path(__file__).resolve().parents[3]))
-    from flow.engine.core import Engine
     from flow.domain.models import Task
+    from flow.engine.core import Engine
+
 
 def run_ask_codebase(query: str, profile: str = "default"):
     """
@@ -31,13 +32,13 @@ def run_ask_codebase(query: str, profile: str = "default"):
         id="manual-query",
         name=f"[RagRetrievalAtom] Query: {query}",
         status="pending",
-        indent_level=0
+        indent_level=0,
     )
-    
+
     # Inject parameters into context
     engine.context["query"] = query
     engine.context["profile"] = profile
-    
+
     # Execute
     print(f"Executing [RagRetrievalAtom] with profile '{profile}'...")
     try:
@@ -45,25 +46,26 @@ def run_ask_codebase(query: str, profile: str = "default"):
         # But run_task encapsulates lifecycle.
         # If we use run_task, it will look for status.md.
         # Let's use dispatch() directly for this "script" mode.
-        
+
         atom = engine.dispatch(task)
         result = atom.run(engine.context)
-        
+
         if result.success:
             print("\n=== Answer ===")
             print(result.exports.get("answer", "No answer returned."))
             print("==============")
         else:
             print(f"Error: {result.message}")
-            
+
     except Exception as e:
         print(f"Workflow Failed: {e}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ask Codebase Workflow")
     parser.add_argument("query", help="The question to ask")
     parser.add_argument("--profile", default="default", help="Model profile to use")
-    
+
     args = parser.parse_args()
-    
+
     run_ask_codebase(args.query, args.profile)

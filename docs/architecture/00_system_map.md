@@ -62,5 +62,5 @@ graph TD
 | `src/flow/` | **Engine Core**. The Python code that runs the system. |
 | `.flow/` | **Project State**. Local config, logs, and status. |
 | `docs/specs/` | **The Law**. Hard requirements. |
-| `docs/architecture/` | **The Map**. High-level patterns (You are here). |
+| `docs/architecture/` | **The Map**. High-level patterns (You are here). Includes [RAG Architecture](rag_architecture.md), [Engine Specs](engine_architecture.md), and [Fractal Workflow Patterns](fractal_patterns.md). |
 | `docs/plans/` | **The Roadmap**. Active plans. |

@@ -12,8 +12,7 @@ class Loom:
     def __init__(self, project_root: Path):
         self.root = project_root
 
-    def insert(self, path: Path, anchor: str, content: str,
-               position: str = "after"):
+    def insert(self, path: Path, anchor: str, content: str, position: str = "after"):
         """
         Surgical insertion relative to an anchor.
         Safety:
@@ -65,9 +64,7 @@ class Loom:
             raise LoomError(f"Anchor not found: '{anchor}'")
 
         if count > 1:
-            raise LoomError(
-                f"Ambiguous anchor: '{anchor}' found {count} times."
-            )
+            raise LoomError(f"Ambiguous anchor: '{anchor}' found {count} times.")
 
         # Perform Insert
         idx = text.find(anchor)

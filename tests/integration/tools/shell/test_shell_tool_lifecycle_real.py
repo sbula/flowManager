@@ -1,10 +1,11 @@
-import pytest
-import sys
 import os
-import time
-import subprocess
 import shutil
+import subprocess
+import sys
+import time
 from pathlib import Path
+
+import pytest
 
 # This test requires two helper scripts to be created on the fly
 # 1. parent_process.py: Initializes ShellTool, runs a child, then sleeps.
@@ -98,6 +99,7 @@ def test_sleep_forever():
     time.sleep(60) # Sleep long enough to be killed
 """
 
+
 @pytest.mark.integration
 def test_fate_sharing_real(tmp_path):
     """
@@ -110,20 +112,20 @@ def test_fate_sharing_real(tmp_path):
     # 1. Prepare Environment
     (tmp_path / "parent.py").write_text(PARENT_SCRIPT, encoding="utf-8")
     (tmp_path / "dummy_test.py").write_text(CHILD_TEST, encoding="utf-8")
-    
+
     # We need to ensure src is in pythonpath for parent.py
     env = os.environ.copy()
-    root = Path(__file__).parent.parent.parent.parent.parent # Root of repo? 
+    root = Path(__file__).parent.parent.parent.parent.parent  # Root of repo?
     # c:\development\pitbula\flowManager\tests\integration\tools\test_lifecycle_real.py
     # ... \tests\integration\tools
     # ... \tests\integration
     # ... \tests
     # ... \flowManager
-    
+
     # Actually, simpler:
-    repo_root = "c:/development/pitbula/flowManager" 
+    repo_root = "c:/development/pitbula/flowManager"
     env["PYTHONPATH"] = f"{repo_root};{env.get('PYTHONPATH', '')}"
-    
+
     # 2. Start Parent
     parent_proc = subprocess.Popen(
         [sys.executable, "parent.py", "dummy_test.py"],
@@ -132,13 +134,13 @@ def test_fate_sharing_real(tmp_path):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         universal_newlines=True,
-        bufsize=1
+        bufsize=1,
     )
-    
+
     # 3. Wait for Child to start (check pid file)
     child_pid_file = tmp_path / "child.pid"
     child_pid = None
-    
+
     # Wait up to 10 seconds for child to write PID
     for _ in range(20):
         if child_pid_file.exists():
@@ -147,28 +149,29 @@ def test_fate_sharing_real(tmp_path):
                 child_pid = int(content)
                 break
         time.sleep(0.5)
-        
+
     assert child_pid is not None, "Child process did not start or write PID"
-    
+
     # Verify Child is running
     import psutil
+
     assert psutil.pid_exists(child_pid), f"Child {child_pid} should be running"
-    
+
     # 4. Kill Parent (Simulate Engine Crash)
     # We rely on Job Objects (Windows) or PDeathSig/Group (Linux)
     print(f"Killing Parent {parent_proc.pid}...", file=sys.stderr)
-    parent_proc.terminate() 
+    parent_proc.terminate()
     # note: terminate() maps to TerminateProcess on Windows (Hard Kill-ish) or SIGTERM on Linux.
     # To simulate HARD crash, we might use kill() (SIGKILL).
     parent_proc.kill()
     parent_proc.wait()
-    
+
     # 5. Verify Child Death
     # Wait a moment for OS to clean up
     time.sleep(2)
-    
+
     is_alive = psutil.pid_exists(child_pid)
-    
+
     # Debug info if failed
     if is_alive:
         try:
@@ -176,5 +179,7 @@ def test_fate_sharing_real(tmp_path):
             print(f"Child Status: {p.status()}", file=sys.stderr)
         except:
             pass
-            
-    assert not is_alive, f"Child Process {child_pid} survived Parent Death! Fate sharing failed."
+
+    assert (
+        not is_alive
+    ), f"Child Process {child_pid} survived Parent Death! Fate sharing failed."

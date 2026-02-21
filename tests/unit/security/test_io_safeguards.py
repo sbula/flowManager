@@ -1,11 +1,15 @@
-import pytest
 import os
-from src.flow.tools.file import FileTool
+
+import pytest
+
 from src.flow.tools.base import ToolContext, ToolResult
+from src.flow.tools.file import FileTool
+
 
 @pytest.fixture
 def file_tool():
     return FileTool()
+
 
 @pytest.fixture
 def context(tmp_path):
@@ -15,50 +19,46 @@ def context(tmp_path):
         allowed_commands=[],
         access_token="",
         volume_id="vol-test",
-        role="dev"
+        role="dev",
     )
+
 
 def test_read_binary_file_fails(file_tool, context, tmp_path):
     """T7.03: Verify binary file reading is rejected."""
     bin_file = tmp_path / "binary.dat"
     bin_file.write_bytes(b"\x00\xFF\x00\xFF")
-    
-    result = file_tool.run({
-        "operation": "read_file",
-        "path": "binary.dat"
-    }, context)
-    
+
+    result = file_tool.run({"operation": "read_file", "path": "binary.dat"}, context)
+
     assert result.status == "error"
     assert result.error["code"] == "BinaryFile"
+
 
 def test_read_large_file_fails(file_tool, context, tmp_path):
     """T7.02: Verify file size limits are enforced."""
     large_file = tmp_path / "large.txt"
     # Write 1KB
     large_file.write_text("a" * 1024, encoding="utf-8")
-    
+
     # Limit to 500 bytes
-    result = file_tool.run({
-        "operation": "read_file",
-        "path": "large.txt",
-        "max_bytes": 500
-    }, context)
-    
+    result = file_tool.run(
+        {"operation": "read_file", "path": "large.txt", "max_bytes": 500}, context
+    )
+
     assert result.status == "error"
     assert result.error["code"] == "FileTooLarge"
+
 
 def test_read_utf8_valid(file_tool, context, tmp_path):
     """Verify valid UTF-8 works."""
     valid_file = tmp_path / "utf8.txt"
     valid_file.write_text("Hello World 🌍", encoding="utf-8")
-    
-    result = file_tool.run({
-        "operation": "read_file",
-        "path": "utf8.txt"
-    }, context)
-    
+
+    result = file_tool.run({"operation": "read_file", "path": "utf8.txt"}, context)
+
     assert result.status == "success"
     assert result.data["content"] == "Hello World 🌍"
+
 
 def test_recursive_expansion_dos(file_tool, context, tmp_path):
     """
@@ -74,12 +74,15 @@ def test_recursive_expansion_dos(file_tool, context, tmp_path):
     with open(huge_file, "wb") as f:
         f.seek(size - 1)
         f.write(b"\0")
-        
-    result = file_tool.run({
-        "operation": "read_file",
-        "path": "huge.txt"
-        # No max_bytes provided, use default
-    }, context)
-    
+
+    result = file_tool.run(
+        {
+            "operation": "read_file",
+            "path": "huge.txt",
+            # No max_bytes provided, use default
+        },
+        context,
+    )
+
     assert result.status == "error"
     assert result.error["code"] == "FileTooLarge"

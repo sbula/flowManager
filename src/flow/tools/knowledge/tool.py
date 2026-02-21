@@ -1,5 +1,6 @@
 from typing import Any, Dict, List
-from src.flow.tools.base import Tool, ToolContext, ToolResult, ToolError
+
+from src.flow.tools.base import Tool, ToolContext, ToolError, ToolResult
 
 
 def get_rag_client():
@@ -19,7 +20,7 @@ class RagClientStub:
 
     def get_task_context(self, task_id: str) -> Dict[str, Any]:
         return {"phase": "Unknown", "task": task_id}
-        
+
     def find_usage(self, symbol: str) -> List[Dict[str, Any]]:
         return []
 
@@ -32,17 +33,23 @@ class KnowledgeTool(Tool):
         "properties": {
             "operation": {
                 "type": "string",
-                "enum": ["search_knowledge", "check_status", "find_usage", 
-                         "get_related_tests", "get_system_map", "get_task_context"]
+                "enum": [
+                    "search_knowledge",
+                    "check_status",
+                    "find_usage",
+                    "get_related_tests",
+                    "get_system_map",
+                    "get_task_context",
+                ],
             },
             "query": {"type": "string"},
             "limit": {"type": "integer"},
             "symbol": {"type": "string"},
             "file_path": {"type": "string"},
             "root_dir": {"type": "string"},
-            "task_id": {"type": "string"}
+            "task_id": {"type": "string"},
         },
-        "required": ["operation"]
+        "required": ["operation"],
     }
 
     def __init__(self):
@@ -58,8 +65,7 @@ class KnowledgeTool(Tool):
             elif operation == "search_knowledge":
                 query = args.get("query")
                 if not query:
-                    raise ToolError("Query required for search",
-                                    code="ValidationError")
+                    raise ToolError("Query required for search", code="ValidationError")
                 results = self._client.search(query, args.get("limit", 5))
                 return ToolResult(status="success", data={"results": results})
             elif operation == "find_usage":
@@ -80,22 +86,21 @@ class KnowledgeTool(Tool):
             elif operation == "get_task_context":
                 task_id = args.get("task_id")
                 if not task_id:
-                     raise ToolError("Task ID required", code="ValidationError")
+                    raise ToolError("Task ID required", code="ValidationError")
                 ctx = self._client.get_task_context(task_id)
                 return ToolResult(status="success", data={"context": ctx})
             else:
-                return ToolResult(status="error", error={
-                    "code": "UnknownOperation",
-                    "message": f"Unknown operation: {operation}"
-                })
+                return ToolResult(
+                    status="error",
+                    error={
+                        "code": "UnknownOperation",
+                        "message": f"Unknown operation: {operation}",
+                    },
+                )
 
         except ToolError as e:
-            return ToolResult(status="error", error={
-                "code": e.code,
-                "message": str(e)
-            })
+            return ToolResult(status="error", error={"code": e.code, "message": str(e)})
         except Exception as e:
-            return ToolResult(status="error", error={
-                "code": "InternalError",
-                "message": str(e)
-            })
+            return ToolResult(
+                status="error", error={"code": "InternalError", "message": str(e)}
+            )

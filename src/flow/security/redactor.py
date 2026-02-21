@@ -1,7 +1,7 @@
-import re
 import math
 import os
-from typing import List, Set, Pattern
+import re
+from typing import List, Pattern, Set
 
 
 class StreamRedactor:
@@ -16,8 +16,10 @@ class StreamRedactor:
         re.compile(r"(sk-[a-zA-Z0-9]{20,})"),  # OpenAI-style
         re.compile(r"(ghp_[a-zA-Z0-9]{30,})"),  # GitHub Personal Access Token
         re.compile(r"(xox[baprs]-[a-zA-Z0-9]{10,})"),  # Slack
-        re.compile(r"([a-zA-Z0-9]{20,40}\.[a-zA-Z0-9]{20,40}\.[a-zA-Z0-9]{20,40})"), # JWT-like
-        re.compile(r"(--BEGIN [A-Z]+ PRIVATE KEY--)"), # PEM Headers
+        re.compile(
+            r"([a-zA-Z0-9]{20,40}\.[a-zA-Z0-9]{20,40}\.[a-zA-Z0-9]{20,40})"
+        ),  # JWT-like
+        re.compile(r"(--BEGIN [A-Z]+ PRIVATE KEY--)"),  # PEM Headers
     ]
 
     def __init__(self, entropy_threshold: float = 4.5, min_len: int = 15):
@@ -29,7 +31,13 @@ class StreamRedactor:
     def _load_env_secrets(self):
         """Loads values from os.environ that look sensitive."""
         block_keys = {
-            "KEY", "SECRET", "TOKEN", "PASSWORD", "PASS", "AUTH", "CREDENTIAL"
+            "KEY",
+            "SECRET",
+            "TOKEN",
+            "PASSWORD",
+            "PASS",
+            "AUTH",
+            "CREDENTIAL",
         }
         for key, value in os.environ.items():
             if len(value) < 6:
@@ -75,14 +83,14 @@ class StreamRedactor:
             return 0
         entropy = 0.0
         length = len(data)
-        
+
         # Count frequencies
         freqs = {}
         for char in data:
             freqs[char] = freqs.get(char, 0) + 1
-            
+
         for count in freqs.values():
             p = count / length
             entropy -= p * math.log2(p)
-            
+
         return entropy

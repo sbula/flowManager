@@ -5,7 +5,7 @@ import signal
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional, Any
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from flow.engine.atoms import Atom, ManualInterventionAtom
 from flow.engine.models import RegistryError, RootNotFoundError
@@ -42,9 +42,7 @@ class Engine:
                     candidate = candidate.resolve(strict=True)
             except (RuntimeError, OSError):
                 # RecursionError or Loop
-                raise RootNotFoundError(
-                    "Symlink loop detected during hydration."
-                )
+                raise RootNotFoundError("Symlink loop detected during hydration.")
 
             # T1.09: If .flow exists but is a file -> CRASH.
             if candidate.exists() and not candidate.is_dir():
@@ -64,9 +62,7 @@ class Engine:
             current = parent
 
         if not found:
-            raise RootNotFoundError(
-                f"No .flow/ directory found starting from {cwd}"
-            )
+            raise RootNotFoundError(f"No .flow/ directory found starting from {cwd}")
 
         # Load Registry
         self._load_registry()
@@ -88,9 +84,7 @@ class Engine:
         try:
             data = json.loads(reg_file.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
-                raise RegistryError(
-                    "Invalid Registry: Root must be a dictionary."
-                )
+                raise RegistryError("Invalid Registry: Root must be a dictionary.")
             self.registry_map = data
             self._validate_registry_integrity()
         except json.JSONDecodeError:
@@ -115,9 +109,7 @@ class Engine:
 
             except (ImportError, AttributeError, ValueError) as e:
                 # Catch ValueError if rsplit fails (bad format)
-                raise RegistryError(
-                    f"Registry Integrity Failed for '{atom_name}': {e}"
-                )
+                raise RegistryError(f"Registry Integrity Failed for '{atom_name}': {e}")
 
     def get_atom_class(self, atom_name: str) -> str:
         """
@@ -125,9 +117,7 @@ class Engine:
         Does NOT import it yet (that's Execution phase).
         """
         if atom_name not in self.registry_map:
-            raise RegistryError(
-                f"Atom '{atom_name}' not found in registry."
-            )
+            raise RegistryError(f"Atom '{atom_name}' not found in registry.")
         return self.registry_map[atom_name]
 
     def dispatch(self, task) -> "Atom":
@@ -183,9 +173,7 @@ class Engine:
                     # Catch everything to ensure Dispatch Safety (T2.04/T2.05)
                     import sys
 
-                    sys.stderr.write(
-                        f"DEBUG: Import Failed for {atom_key}: {e}\n"
-                    )
+                    sys.stderr.write(f"DEBUG: Import Failed for {atom_key}: {e}\n")
                     import traceback
 
                     traceback.print_exc(file=sys.stderr)
@@ -249,9 +237,7 @@ class Engine:
                         sub_tree._reindex()
 
                         # Recurse
-                        deep_active = self._recursive_find_active(
-                            sub_tree, self.root
-                        )
+                        deep_active = self._recursive_find_active(sub_tree, self.root)
                         if deep_active:
                             return deep_active
 
@@ -262,9 +248,7 @@ class Engine:
                         # (Parent should be done).
                         # If sub-flow is PENDING, we should start it.
 
-                        first_pending = self._find_first_pending(
-                            sub_tree.root_tasks
-                        )
+                        first_pending = self._find_first_pending(sub_tree.root_tasks)
                         if first_pending:
                             return first_pending
 
@@ -361,10 +345,7 @@ class Engine:
             raise
 
     def _handle_circuit_breaker(self, task):
-        print(
-            f"FATAL: Circuit Breaker Triggered for Task {task.id}",
-            file=sys.stderr
-        )
+        print(f"FATAL: Circuit Breaker Triggered for Task {task.id}", file=sys.stderr)
         tree = self.load_status()
         tree.update_task(task.id, status="error")
         self.persister.save(tree)
@@ -400,9 +381,7 @@ class Engine:
             except (TypeError, OverflowError) as e:
                 # If non-serializable, we treat this as a Safety Violation
                 # We do NOT merge the exports.
-                raise RuntimeError(
-                    f"Atom returned non-serializable exports: {e}"
-                )
+                raise RuntimeError(f"Atom returned non-serializable exports: {e}")
 
             self.context.update(result.exports)
 

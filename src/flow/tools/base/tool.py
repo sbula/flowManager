@@ -10,6 +10,7 @@ class ToolContext:
     Contains service root, isolation level, allowed commands,
     token, volume ID, and role.
     """
+
     service_root: str
     isolation_level: str
     allowed_commands: List[str]
@@ -23,6 +24,7 @@ class ToolResult:
     """
     Standardized result from a tool execution.
     """
+
     status: str
     data: Optional[Dict[str, Any]] = None
     error: Optional[Dict[str, Any]] = None
@@ -31,8 +33,13 @@ class ToolResult:
 
 class ToolError(Exception):
     """Base exception for all tool errors."""
-    def __init__(self, message: str, code: str = "InternalError",
-                 details: Optional[Dict[str, Any]] = None):
+
+    def __init__(
+        self,
+        message: str,
+        code: str = "InternalError",
+        details: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(message)
         self.code = code
         self.details = details or {}
@@ -40,6 +47,7 @@ class ToolError(Exception):
 
 class Tool(ABC):
     """Abstract base class for all tools."""
+
     name: str
     description: str
     input_schema: Dict[str, Any]

@@ -17,3 +17,11 @@ This file contains test cases removed from `01_04_tooling_spec.md` because they 
     *   *Test*:
         *   Input: Tool returns un-pickleable object.
         *   Expect: State Manager sanitizes or discards the object before persistence, logging a warning.
+
+## 3. RAG System Concerns
+*   **T4.04 RAG Cold Start**:
+    *   *Original Context*: KnowledgeTool.
+    *   *Reason*: RAG strategy definition is currently deferred. We will revisit testing constraints for cold start when the detailed capability matches the RAG architecture.
+    *   *Test*:
+        *   Input: First run, index missing.
+        *   Expect: Returns "Indexing in progress..." or partial results without crashing.

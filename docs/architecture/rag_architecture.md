@@ -1,52 +1,66 @@
-# Part 5: RAG System for Codebase Indexing
+# Flow Manager: RAG & Knowledge System Architecture
 
-## Executive Summary
+## 1. Executive Summary
 
-Recommends a **fully local RAG stack** using Ollama embeddings + vector DB (ChromaDB/LanceDB) with incremental indexing on git operations, integrated into the Flow Manager for context-aware agent queries.
+The **Knowledge System** is a semantic intelligence layer designed to decouple the "Memory" of the codebase from the "Reasoning" of the Agent. It provides **Retrieval-Augmented Generation (RAG)** to safely and efficiently give the agent deep context about the system without context-window stuffing. It relies on a fully local-first stack where possible, but is built agnostically.
 
-## 1. Local RAG Stack Recommendation
+**Key Design Principles (Aligned with 01_06 Spec):**
+1.  **Structure-Aware Ingestion**: Instead of naive text splitting, we use tools like **Tree-sitter** to parse code into semantic chunks (Classes, Functions, Modules).
+2.  **Evolution Tracking**: We use a **Manifest-based Hashing Strategy** (`rag_manifest.json`) to track file changes incrementally and prevent redundant re-indexing.
+3.  **Model Agnostic**: Zero lock-in. Uses an **LLM Gateway / Profile Router** to support Gemini, Ollama, OpenAI, or Anthropic depending on the cognitive task.
+4.  **Local First**: All vector data is stored locally using **ChromaDB** (or LanceDB) for privacy and speed.
 
-### 1.1 Core Components
-
-| Component | Technology | Purpose | Why Local? |
-|-----------|-----------|----------|-------------|
-| **LLM** | Ollama (llama3.1/codellama) | Embeddings + queries | No API costs, privacy |
-| **Vector DB** | ChromaDB or LanceDB | Similarity search | Python-native, fast |
-| **Code Parser** | Tree-sitter | AST extraction | Multi-language support |
-| **Structural Search** | ast-grep | Pattern matching | Fast, language-aware |
-| **Orchestrator** | Python service | Index management | Integrates with Flow Manager |
-
-### 1.2 Architecture
+## 2. System Architecture
 
 ```mermaid
 graph TD
-    A[Git Hook] -->|commit/push/merge| B[Indexer Service]
-    B --> C[Tree-sitter Parser]
-    C --> D[Chunk Extractor]
-    D --> E[Ollama Embedder]
-    E --> F[ChromaDB/LanceDB]
-    
-    G[Flow Manager] --> H[RAG Query API]
-    H --> F
-    H --> I[Re-ranker]
-    I --> J[Context Builder]
+    subgraph "Flow Manager"
+        A[Agent/Atom] -->|Query| B[KnowledgeService]
+    end
+
+    subgraph "Knowledge Core"
+        B -->|Retrieve| C[VectorStore (ChromaDB)]
+        B -->|Synthesize| D[LLM Gateway / Router]
+        
+        D -->|Route| E{Task Profile}
+        E -->|Coding| F[Claude / DeepSeek]
+        E -->|Reasoning| G[Thinking Model]
+        E -->|Fast Chat| H[Gemini Flash / Llama 3]
+    end
+
+    subgraph "Ingestion Pipeline"
+        L[IngestionEngine] -->|Scan| M[Manifest Manager]
+        M -->|Changed?| N{Hash Diff}
+        N -->|Yes| O[Semantic Parse (Tree-sitter)]
+        O -->|Chunk| P[Embed & Upsert]
+        N -->|No| Q[Skip]
+    end
+
+    subgraph "Events"
+        Z[Git Hooks / Cron] -->|Trigger| L
+    end
 ```
 
-## 2. Indexing Strategy
+## 3. The Ingestion Strategy
 
-### 2.1 What to Index
-
+### 3.1 What to Index
 | Content Type | Granularity | Metadata |
 |--------------|-------------|----------|
-| **Code** | Function/class level | Language, file path, imports |
-| **Documentation** | Section level | Type (API/guide/spec) |
-| **Plans** | L1-L5 artifacts | Task ID, status, expert annotations |
+| **Code** | Function/class level (Tree-sitter) | Language, file path, imports |
+| **Documentation** | Section level (Markdown headers) | Type (API/guide/spec) |
 | **Tests** | Test case | Target function, assertions |
-| **Configs** | Full file | Service, environment |
+| **Decisions (ADRs)** | Document level | Linked issue/feature |
 
-### 2.2 Chunking Strategy
+### 3.2 Manifest Manager (`rag_manifest.json`)
+To avoid "wasting reading and relinking unchanged code," an incremental State Manifest is used.
+*   **Location**: `.flow/rag_manifest.json`
+*   **Trigger**: On ingestion trigger (e.g., git `post-commit` hook), the engine computes the SHA256 hash of targets.
+    *   `New/Changed Hash`: Parse, Embed, Upsert. Update Manifest.
+    *   `Deleted`: Remove from Chroma. Update Manifest.
+    *   `Unchanged`: Skip. Zero API calls, zero processing.
 
-**Code**:
+### 3.3 Semantic Chunking Implementation Strategy
+We avoid naive splitting. Code must be extracted using ASTs:
 ```python
 # Extract functions/classes as atomic chunks
 def extract_code_chunks(file_path, language):
@@ -60,213 +74,24 @@ def extract_code_chunks(file_path, language):
                 'content': node.text.decode('utf-8'),
                 'type': node.type,
                 'name': extract_name(node),
-                'start_line': node.start_point[0],
-                'end_line': node.end_point[0],
-                'file': str(file_path),
-                'language': language
+                'file': str(file_path)
             })
     return chunks
 ```
 
-**Documentation**:
-- Split on `## ` headers
-- Max chunk size: 512 tokens
-- Overlap: 50 tokens for context continuity
+### 3.4 Cold Start Mitigation
+To ensure fast boot times, base Docker images or environments can ship with **Pre-Computed Indexes** for standard libraries or stable core modules. The system only indexes the "delta" missing from the manifest on startup.
 
-### 2.3 Incremental Indexing
+## 4. Retrieval & Query Patterns
 
-**Git Hooks Integration**:
-```bash
-# .git/hooks/post-commit
-#!/bin/bash
-python workflow_core/rag/indexer.py --incremental --changed-files-only
-```
-
-**Changed Files Detection**:
-```python
-def get_changed_files(since_commit=None):
-    if since_commit:
-        cmd = f"git diff --name-only {since_commit} HEAD"
-    else:
-        cmd = "git diff --cached --name-only"
-    
-    result = subprocess.run(cmd.split(), capture_output=True)
-    return result.stdout.decode().splitlines()
-
-def incremental_index(db, changed_files):
-    for file in changed_files:
-        # Remove old chunks for this file
-        db.delete(where={"file": file})
-        
-        # Re-index
-        chunks = extract_chunks(file)
-        embeddings = generate_embeddings(chunks)
-        db.add(embeddings, chunks)
-```
-
-### 2.4 Trigger Points
-
-| Event | Scope | Indexing Mode |
-|-------|-------|---------------|
-| `post-commit` | Changed files | Incremental |
-| `post-merge` | Merged branch files | Incremental |
-| `pre-push` | All staged | Validation only (check index health) |
-| Manual | Full codebase | Full rebuild |
-
-## 3. Technology Deep-Dive
-
-### 3.1 Ollama Setup
-
-```bash
-# Install Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Pull embedding model
-ollama pull nomic-embed-text:latest
-
-# Pull code model
-ollama pull codellama:13b
-```
-
-**Embedding Generation**:
-```python
-import ollama
-
-def generate_embedding(text):
-    response = ollama.embeddings(
-        model='nomic-embed-text',
-        prompt=text
-    )
-    return response['embedding']
-```
-
-### 3.2 ChromaDB vs LanceDB
-
-| Feature | ChromaDB | LanceDB |
-|---------|----------|---------|
-| **Speed** | Fast (in-memory) | Very Fast (columnar) |
-| **Storage** | DuckDB/SQLite | Arrow/Parquet |
-| **Python API** | Excellent | Excellent |
-| **Hybrid Search** | ✓ (0.4.0+) | ✓ |
-| **Scalability** | Good (< 10M docs) | Excellent (100M+) |
-
-**Recommendation**: **ChromaDB** for simplicity, **LanceDB** if codebase > 500k LOC.
-
-### 3.3 ChromaDB Implementation
+### 4.1 Query Processing
+The `KnowledgeService` supports querying across code, documentation, and historical decisions through multiple techniques:
+1.  **Semantic Search**: Querying ChromaDB with an LLM-generated embedding.
+2.  **Structural Search**: Using tools like `ast-grep` to find exact functional patterns (e.g., `ast.grep("async def $FUNC($ARGS)")`).
+3.  **Hybrid Search**: Combining embedding similarity with strict metadata filtering.
 
 ```python
-import chromadb
-from chromadb.config import Settings
-
-# Initialize persistent client
-client = chromadb.PersistentClient(
-    path="./workflow_core/rag/db",
-    settings=Settings(anonymized_telemetry=False)
-)
-
-# Create collection
-collection = client.get_or_create_collection(
-    name="quantivista_codebase",
-    metadata={"description": "Full codebase embeddings"}
-)
-
-# Add documents
-collection.add(
-    embeddings=embeddings_list,
-    documents=chunk_texts,
-    metadatas=chunk_metadata,
-    ids=chunk_ids
-)
-
-# Query
-results = collection.query(
-    query_embeddings=query_embedding,
-    n_results=10,
-    where={"language": "python"},  # Filter
-    include=["documents", "metadatas", "distances"]
-)
-```
-
-## 4. Flow Manager Integration
-
-### 4.1 New Atom: `RAG_Context_Gather`
-
-```python
-# workflow_core/engine/atoms/rag_context.py
-
-def execute(args, context):
-    """
-    Gathers relevant code context using RAG.
-    """
-    query = args['query']  # e.g., "MACD calculation logic"
-    filters = args.get('filters', {})  # e.g., {"language": "python"}
-    max_results = args.get('max_results', 5)
-    
-    # Query vector DB
-    rag_client = get_rag_client()
-    results = rag_client.query(
-        query=query,
-        filters=filters,
-        n_results=max_results
-    )
-    
-    # Build context string
-    context_snippets = []
-    for doc, metadata in zip(results['documents'], results['metadatas']):
-        context_snippets.append({
-            'file': metadata['file'],
-            'content': doc,
-            'relevance': metadata.get('distance')
-        })
-    
-    return {
-        "status": "completed",
-        "context_snippets": context_snippets
-    }
-```
-
-### 4.2 Workflow Usage
-
-```json
-{
-  "steps": [
-    {
-      "id": "gather_context",
-      "ref": "RAG_Context_Gather",
-      "args": {
-        "query": "How are MACD indicators currently calculated?",
-        "filters": {"service": "market-intelligence"}
-      },
-      "export": {"code_context": "context_snippets"}
-    },
-    {
-      "id": "analysis",
-      "ref": "Expert_Sequencer",
-      "args": {
-        "prompt_context": "${code_context}"
-      }
-    }
-  ]
-}
-```
-
-## 5. Query Patterns
-
-### 5.1 Semantic Search
-```python
-# Find similar implementations
-results = rag.query("calculate exponential moving average")
-```
-
-### 5.2 Structural Search (ast-grep)
-```python
-# Find all async functions in Python
-results = ast.grep("async def $FUNC($ARGS)")
-```
-
-### 5.3 Hybrid Search
-```python
-# Semantic + metadata filters
+# Semantic + metadata filters Example
 results = rag.query(
     query="database connection pooling",
     where={
@@ -276,146 +101,30 @@ results = rag.query(
 )
 ```
 
-## 6. Index Refresh Strategy
+### 4.2 Expert Profiles & LLM Routing
+The system uses **Expert Profiles** in `flow_config.json` to route tasks to the best-suited model. The Knowledge System acts as a Gateway.
 
-### 6.1 Real-Time (Event-Driven)
-
-```python
-# .git/hooks/post-commit
-#!/usr/bin/env python3
-from workflow_core.rag.indexer import incremental_index
-
-changed_files = get_changed_files()
-incremental_index(changed_files)
-```
-
-### 6.2 Scheduled (Cron)
-
-```cron
-# Nightly full re-index (backup strategy)
-0 2 * * * cd /path/to/quantivista && python -m workflow_core.rag.indexer --full
-```
-
-### 6.3 On-Demand
-
-```bash
-# Manual trigger
-$ flow_manager rag reindex --full
-$ flow_manager rag reindex --service market-intelligence
-```
-
-## 7. Advanced Features
-
-### 7.1 Code-to-Test Linking
-
-Index relationships:
-```python
-{
-  "type": "function",
-  "name": "calculate_macd",
-  "file": "strategies/macd/strategy.py",
-  "tests": [
-    "tests/unit/test_macd.py::test_calculate_macd_basic",
-    "tests/integration/test_macd_integration.py::test_macd_signal_generation"
-  ]
+```json
+"knowledge": {
+  "embedding_provider": "local/ollama",
+  "embedding_model": "nomic-embed-text",
+  "profiles": {
+    "default": { "provider": "gemini", "model": "gemini-1.5-flash" },
+    "coding": { "provider": "anthropic", "model": "claude-3-5-sonnet" },
+    "reasoning": { "provider": "ollama", "model": "deepseek-r1:7b", "api_base": "http://localhost:11434" }
+  }
 }
 ```
 
-Query: "Show tests for calculate_macd"
+### 4.3 Flow Manager Integration
+Retrieval is integrated directly into the Flow Engine via Atoms like `RAG_Context_Gather`. The context is injected into the prompt payload before the LLM generates a response.
 
-### 7.2 Planning Document Retrieval
+## 5. Technology Stack Selection
 
-```python
-# Find relevant past decisions
-results = rag.query(
-    query="How did we handle database migrations?",
-    where={"type": "planning_document", "approved": True}
-)
-```
-
-### 7.3 Dependency Graph
-
-```python
-# Build import graph
-def build_dependency_graph(service):
-    files = get_all_files(service)
-    graph = {}
-    
-    for file in files:
-        imports = extract_imports(file)
-        graph[file] = imports
-    
-    return graph
-```
-
-## 8. Performance Optimization
-
-### 8.1 Caching
-
-```python
-from functools import lru_cache
-
-@lru_cache(maxsize=1000)
-def get_embedding(text_hash):
-    return generate_embedding(text)
-```
-
-### 8.2 Batch Processing
-
-```python
-# Index in batches of 100
-batch_size = 100
-for i in range(0, len(chunks), batch_size):
-    batch = chunks[i:i+batch_size]
-    batch_embeddings = generate_embeddings_batch(batch)
-    collection.add(batch_embeddings, batch)
-```
-
-## 9. Implementation Roadmap
-
-### Week 1: Setup
-- [ ] Install Ollama + ChromaDB
-- [ ] Create indexer service skeleton
-- [ ] Implement Tree-sitter parsers (Python, Rust, Kotlin)
-
-### Week 2: Indexing
-- [ ] Implement chunking strategies
-- [ ] Build incremental indexer
-- [ ] Setup git hooks
-
-### Week 3: Query API
-- [ ] Create RAG query service
-- [ ] Implement `RAG_Context_Gather` atom
-- [ ] Test integration with Flow Manager
-
-### Week 4: Optimization
-- [ ] Add caching layer
-- [ ] Performance tuning
-- [ ] Documentation
-
-## 10. Cost Analysis
-
-**Local vs Cloud**:
-| Aspect | Local (Ollama+Chroma) | Cloud (OpenAI+Pinecone) |
-|--------|------------------------|-------------------------|
-| **Setup Cost** | $0 | $0 |
-| **Monthly Cost** | ~$10 (electricity) | ~$200-500 |
-| **Privacy** | ✓ | ✗ |
-| **Speed** | Fast (local) | Network latency |
-| **Scalability** | Limited by hardware | Unlimited |
-
-**Recommendation**: Start local, migrate to cloud if codebase > 1M LOC.
-
-## Conclusion
-
-Local RAG system provides:
-✅ **Zero API costs**  
-✅ **Full privacy** (code never leaves local machine)  
-✅ **Fast retrieval** (< 100ms per query)  
-✅ **Incremental updates** (sub-second indexing)  
-✅ **Multi-language support** (Python, Rust, Kotlin, OpenAPI, gRPC)
-
----
-
-**Status**: ✅ RAG System Designed  
-**Next**: Part 6 - Analysis Process Framework
+| Component | Choice | Rationale |
+| :--- | :--- | :--- |
+| **Orchestration** | **Custom Python Wrapper** | Explicit control over context and routing. |
+| **Vector DB** | **ChromaDB** | Local, fast, Python-native. (LanceDB as backup if scale > 500k LOC). |
+| **Parsing** | **Tree-sitter** | Industry standard for robust code parsing over multi-language bases. |
+| **Embeddings** | **Ollama** | Local, zero API costs, full privacy. |
+| **Providers** | **LLM Gateway** | Best-of-breed selection (Claude for Code, Local for Privacy). |

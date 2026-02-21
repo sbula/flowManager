@@ -59,11 +59,7 @@ class EventBus:
                     "details": str(e),
                 }
 
-        event = Event(
-            type=event_type,
-            payload=final_payload,
-            metadata=metadata or {}
-        )
+        event = Event(type=event_type, payload=final_payload, metadata=metadata or {})
         self._log(event)
         return event
 
