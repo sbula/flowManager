@@ -8,11 +8,27 @@ This document synthesizes key architectural strategies and testing paradigms ext
 ## 1. Scenario Evaluation vs. Testing Strategy
 
 ### 1.1 Distinguishing Plumbing from Reasoning
-*   **Concept**: In an Agentic codebase, classical Unit/Integration testing evaluates "Plumbing" (determinist tooling). Scenarios evaluate stochastic "Reasoning".
+*   **Concept**: In an Agentic codebase, classical Unit/Integration testing evaluates "Plumbing" (determinist tooling). Scenarios evaluate stochastic "Reasoning" and trajectory execution.
 *   **Application for Flow Manager**:
-    *   **Testing**: Validating deterministic tools like `FileTool`, `SubprocessTool`, Tree-sitter extracts.
-    *   **Scenarios**: Utilizing "Golden Datasets" of trajectories. Evaluate if the agent called the right tool intuitively, recovered gracefully from exceptions, and maintained goal focus across a sequence of actions.
-    *   **RAG Triangulation**: Utilize "LLM-as-a-judge" techniques to score agent logic strictly against retrieved context, thereby checking for hallucination against known specifications rather than rigid boolean assertions.
+    *   **Testing**: Validating deterministic components like `FileTool`, `SubprocessTool`, or Tree-sitter extracts using standard assertions.
+    *   **Scenarios**: Utilizing "Golden Datasets" to evaluate stochastic trajectories. 
+    *   **LLM-as-a-Judge**: Instead of rigid boolean assertions, an isolated LLM evaluates the agent's logic.
+        *   *Best Practice - Clear Rubrics*: The Judge LLM must be provided strictly defined criteria (e.g., "Score 1-5 on factual adherence to the retrieved specification").
+        *   *Best Practice - Multi-Step Reasoning*: Prompt the Judge to break down complex judgments and provide a rationale/explanation before outputting a final score.
+        *   *Best Practice - Bias Mitigation*: Guard against position bias and self-preference by swapping ordering in pairwise comparisons and calibrating prompts.
+
+---
+
+### 1.2 Trajectory Evaluation Metrics
+When the LLM-as-a-Judge evaluates a scenario trajectory, it must score against standardized, observable metrics:
+*   **Task Success Rate**: Did the agent achieve the final objective?
+*   **Tool Selection & Execution Accuracy**: Did the agent pick the correct tool for the sub-task, provide the right parameters, and handle output correctly?
+*   **Reasoning and Plan Quality**: Was the agent's logic sound? Did it adhere to the generated implementation plan rather than wandering?
+*   **Intent Resolution**: Did the agent correctly interpret the underlying intent of the ambiguous user request?
+
+### 1.3 Human-in-the-Loop (HITL) Calibration
+*   **Concept**: An LLM-as-a-Judge is not infallible and can suffer from its own hallucinations or drift.
+*   **Application**: Periodically, test runs and scenario evaluations must explicitly block and request expert human review. The human's score acts as a calibration baseline (Ground Truth) to refine the Judge's prompt rubrics, ensuring the automated evaluation pipeline remains rigorous and trustworthy.
 
 ---
 

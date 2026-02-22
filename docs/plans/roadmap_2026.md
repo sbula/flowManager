@@ -59,6 +59,21 @@ gantt
 - Reduce planning workflow LOC by 40%
 - Zero regression in existing workflows
 
+### Phase 1.5: State DB Migration (Month 2.5)
+
+**Goal**: Refactor the Engine Core (`01_03`) state persistence from file-based JSON/tmp renames to an embedded ACID database (e.g., SQLite with WAL enabled).
+
+**Rationale**: Relying on arbitrary file renaming becomes a locking nightmare and synchronization bottleneck when scaling up to nested sub-flows, map/fan-out parallelism, and concurrent work on multiple features. 
+
+**Deliverables**:
+- [ ] Define strict `StateStoreInterface` Protocol in Python Engine Core.
+- [ ] Implement `SQLiteStateStore` aligning with the Domain Model.
+- [ ] Migrate `flow_state` reads/writes to the synchronous database.
+
+**Success Criteria**:
+- SQLite DB handles parallel state writes without deadlocks.
+- Engine correctly hydrates sub-flow state from DB relational tables.
+
 ### Phase 2: RAG & Context (Months 3-4)
 
 **Goal**: Enable intelligent context gathering

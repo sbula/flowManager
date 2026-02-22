@@ -1,0 +1,150 @@
+# 01_05 Atoms Specification
+
+> **Status**: DRAFT (V-Next Revision)
+> **Owner**: Architecture Team
+> **Context**: Definition of the fundamental elements of Flows in the Flow Manager ecosystem.
+
+## 1. Overview
+**Atoms** are the fundamental, indivisible elements of a *Flow*. They are the smallest, atomic blocks that make up a directed execution graph.
+
+**CRITICAL ARCHITECTURAL DISTINCTION: Atoms vs. Tools**
+*   **Tools** are MCP-like (Model Context Protocol) capabilities consumed directly by an *Agent* during its reasoning loop.
+*   **Atoms** are the smallest building blocks of *Flows* orchestrated by the Engine.
+*   **BOTH** Atoms and Tools can be *Active* (manipulating files, triggering deployments, mutating state) or *Passive* (reading data, validating status, searching knowledge).
+
+**Key Characteristics of an Atom:**
+1.  **State Boundaries**: An Atom execution represents a discrete step. The Flow Engine persists state before an Atom begins and after an Atom completes.
+2.  **Idempotent-by-Design**: Atoms must be designed gracefully so that unexpected re-runs do not multiply side effects.
+3.  **Isolated Fault Domains**: Atoms catch all internal exceptions and yield a structured state (`AtomResult`), preventing Orchestrator crashes.
+4.  **Typed Contracts**: Atoms strictly define their required Config (static) and Context (runtime) schemas.
+
+---
+
+## 2. The Base Protocol (`Atom`)
+Located at: `src/flow/atoms/__init__.py`
+
+All Atoms must inherit from this Abstract Base Class.
+
+```python
+from enum import Enum
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional
+
+class AtomStatus(str, Enum):
+    SUCCESS = "SUCCESS"     # Action completed as intended
+    FAILED = "FAILED"       # Action failed permanently
+    WAITING = "WAITING"     # Suspended, waiting for human approval or async callback
+    RETRY = "RETRY"         # Transient failure, Engine should retry based on strategy
+
+class AtomResult:
+    def __init__(
+        self, 
+        status: AtomStatus, 
+        message: str, 
+        exports: Optional[Dict[str, Any]] = None,
+        error: Optional[Dict[str, Any]] = None
+    ):
+        self.status = status       # The state machine transition signal
+        self.message = message     # Human-readable summary for logs
+        self.exports = exports or {} # Data to write back to the Global Flow Context
+        self.error = error         # Structured error context for debugging/telemetry
+
+class Atom(ABC):
+    @abstractmethod
+    def run(self, context: Dict[str, Any], config: Dict[str, Any]) -> AtomResult:
+        """Executes the discrete unit of work."""
+        pass
+        
+    def cleanup(self) -> None:
+        """Graceful teardown hook (e.g., closing subprocesses/sockets)."""
+        pass
+```
+
+### 2.1 The Context vs Config Split
+*   **`config`**: Immutable parameters defined in the Flow YAML (e.g., `retries: 3`, `target_branch: main`).
+*   **`context`**: Malleable runtime state populated by previous Atoms in the pipeline (e.g., `previous_step_artifact_path`). 
+
+---
+
+## 3. The `AgentAtom` (Cognitive Execution)
+
+While many Atoms will be procedural (e.g., `GitCommitAtom`, `SendNotificationAtom`), the highest-complexity Atom is the `AgentAtom`.
+
+### 3.1 Purpose
+The `AgentAtom` acts as an integration "Hull" or "Shell". It does not directly manage LLM APIs or execute raw system commands. Instead, it tightly binds the **LLM Binding System (`01_06`)** and the **Tooling System (`01_04`)** to achieve a dynamic objective. It embeds stochastic Agentic reasoning into a deterministic Flow.
+
+Its primary responsibility as an Orchestrator Atom is **State Boundary Management and Idempotency**: isolating the external systems, hydrating the LLM ReAct loop on a resume, and catching exceptions from the external boundaries to prevent Engine crashes. 
+
+### 3.2 Resilience & The ReAct Loop
+A ReAct (Reason-Act) loop is stochastic and can run for minutes, consuming multiple Tools. If the Flow Engine stops mid-loop, starting the `AgentAtom` from scratch destroys progress and wastes tokens.
+
+### 3.3 The AgentAtom Contract
+To satisfy the Orchestrator's need for discrete state boundaries without breaking idempotency, the `AgentAtom` must:
+1.  **Persist Thought History**: After *every single Tool invocation* within its ReAct loop, the `AgentAtom` must serialize its scratchpad/message history back to the `context` dictionary.
+2.  **Re-entrant `run()`**: If `run()` is called, it first checks the `context` for existing serialized history. If found, it natively resumes the ReAct loop from the exact point of interruption rather than restarting the prompt.
+
+---
+
+## 4. Procedural Orchestration Atoms
+
+In addition to `AgentAtom`, a Flow will consist of procedural Atoms handling logic and state. 
+
+### 4.1 `ManualReviewAtom` (Quality Gates & Pausing)
+*   **Purpose**: Intentional pausing / Quality Gates.
+*   **Behavior**: Returns `AtomResult(status=AtomStatus.WAITING)`. The Engine serializes state to `.flow_state/` and suspends the daemon listener, awaiting an external API trigger (like a Human clicking "Approve" in a UI or CLI) to unpause the parent Flow.
+*   **Note**: This is distinct from an Agent using an `ask_human` Tool. This is a rigid, Orchestrator-level pause between discrete Flow steps.
+
+### 4.2 `AssertionAtom` (Deterministic Quality Gate)
+*   **Purpose**: A hardcoded programmatic check.
+*   **Behavior**: Evaluates a strict rule against the `context` (e.g., `coverage_percentage >= 80`). If the rule fails, the Atom yields `AtomStatus.FAILED` and halts the Flow. If it passes, it yields `SUCCESS`.
+
+### 4.3 `TransformAtom` (Data Mapping)
+*   **Purpose**: Adapting data between steps without needing an LLM.
+*   **Behavior**: Executes a lightweight JSONPath/JMESPath query against the `context` to extract or restructure data, saving the result to `exports`. Acts as glue between standard Atoms.
+
+### 4.4 `WebhookAtom` (System Integration)
+*   **Purpose**: Asynchronous system notification or triggering.
+*   **Behavior**: Executes a standard HTTP REST call (e.g., to Slack, Jira, or a CI/CD pipeline) based on fixed `config` parameters. Returns `SUCCESS` if the external system acknowledges the webhook.
+
+### 4.5 `TimerAtom` (Scheduled Delay)
+*   **Purpose**: Yielding execution for a specific duration.
+*   **Behavior**: Evaluates the `config` duration, saves state to `.flow_state/`, and instructs the Engine to wake the Flow back up precisely after the timer expires before proceeding to the next step.
+
+### 4.6 `ScriptAtom` (Subprocess Execution)
+*   **Purpose**: Running deterministic, local scripts or shell commands without expensive Agent overhead.
+*   **Behavior**: Executes a command defined in `config` (e.g., `pytest`, `npm ci`, `docker build`) within a bounded subprocess. Captures `stdout`, `stderr`, and `exit_code`, mapping them into `exports`. Includes a strict timeout to prevent zombie processes.
+
+### 4.7 `AwaitCallbackAtom` (Asynchronous Pause)
+*   **Purpose**: Pausing a Flow while an external asynchronous system does work (e.g., CI/CD pipeline, remote API).
+*   **Behavior**: Generates a unique `correlation_id`, transitions the Atom to `WAITING`, and suspends the Flow listener. The Orchestrator resumes only when it receives an external webhook containing this `correlation_id`, feeding the payload back into the `context`.
+
+### 4.8 `MutexAtom` (Resource Locking)
+*   **Purpose**: Preventing race conditions on shared external resources (e.g., Git repositories, databases) when flows run concurrently.
+*   **Behavior**: Attempts to acquire a named lock specified in `config`. If locked, it yields and waits. It strictly guarantees the lock is released in its `cleanup()` method even if the Orchestrator crashes.
+
+### 4.9 `SingleShotLLMAtom` (Narrow Intelligence)
+*   **Purpose**: Applying NLP classification or summarization without the unbounded, expensive overhead of a full ReAct loop or tool integration.
+*   **Behavior**: Accepts a simple `prompt_template`, interpolates runtime `context` variables, calls the LLM Binding once, returns the string output in `exports`, and instantly completes.
+
+---
+
+## 5. Non-Atoms (Engine Concerns)
+
+To prevent anti-patterns and redundant proxy classes, the following common orchestration needs are explicitly **NOT** Atoms. They are native features of the Flow Engine DAG Router:
+
+1.  **Sub-Flows**: A Flow calling another Flow is handled by the Engine recursively loading the requested DAG. There is no `SubFlowAtom`.
+2.  **Routing (Switch/Case)**: Determining which execution branch to take based on a variable is a fundamental DAG traversal feature, managed by the Engine.
+3.  **Parallelism (Map/Fan-Out)**: Executing a single task concurrently across a list of items is managed by the Engine splitting the execution thread, not by an Atom attempting to manage parallel subprocesses.
+4.  **Parallel Fan-In (Reducers)**: Merging the outputs of multiple parallel branches back into the parent `context` is a structural Engine routing concern. Forcing an Atom to handle structural Fan-In breaks the "Atoms only care about their own inputs/outputs" design. The Engine must apply a defined reduction strategy to the parallel `exports`.
+
+---
+
+## 6. Lifecycle & Sandboxing Guarantees
+
+Every derived `Atom` must adhere to these guarantees:
+
+### 6.1 Exception Bleeding (The "Iron Wall")
+The `run()` method is wrapped by the Engine in an aggressive `try/except Exception` block. If an Atom throws a raw Python error (e.g., `KeyError`, `IndexError`), the Engine catches it, logs a stack trace, and enforces an `AtomStatus.FAILED` state. The Orchestrator daemon *never* crashes due to Atom logic.
+
+### 6.2 Graceful Teardown
+If the Flow Engine receives a `SIGTERM` or cancellation trigger, it iterates over the currently active Atom and explicitly calls `cleanup()`. Atoms that spawn subprocesses or lock files must implement this to avoid dangling resources.

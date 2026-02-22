@@ -51,6 +51,9 @@ An **Atom** is a Unit of Work.
 
 ### 3.4. Flow Execution (The Orchestrator)
 A **Flow** describes a Control Structure (Sequence, Branch, Loop).
+
+> **Roadmap Note**: State persistence is currently file-based. To support scaling nested sub-flows, parallel execution, and concurrent features safely, state management will be migrated from file-based to an embedded ACID database (e.g., SQLite WAL). See `roadmap_2026.md` (Phase 1.5).
+
 *   **State Persistence**:
     *   **Mechanism**: **Synchronous Atomic Write**.
     *   **Step**: Write `flow_state_{id}.tmp` -> `fsync` -> Atomic Rename.
@@ -72,6 +75,13 @@ A **Flow** describes a Control Structure (Sequence, Branch, Loop).
     *   On `flow resume {id}`:
     *   Check `current_step`. If it is a Sub-Workflow and status is `IN_PROGRESS`:
     *   **Recursively Load** child state and resume execution *inside* the child at its specific step.
+
+### 3.4.3 Parallel Execution (Map / Fan-Out & Fan-In)
+*   **Problem**: Sibling steps running concurrently will cause race conditions if they blind-write to the exact same `context_cache`.
+*   **Mechanism**:
+    *   **Fan-Out (Map)**: The Engine spins up isolated parallel scopes for each branch, feeding them a read-only view of the parent context.
+    *   **Isolation**: Each parallel step writes its `AtomResult.exports` to its own temporary namespace (e.g., `context.outputs.[branch_id]`).
+    *   **Fan-In (Reducer)**: Once all branches complete, the Engine applies a **Reducer Configuration** (e.g., concatenate arrays, merge dictionaries, or map results to specific keys) to safely merge the isolated namespaces back into the dominant `WorkflowState.context_cache` sequentially. It is strictly an Engine-level concern, not an Atom-level concern.
 
 ### 3.5. Update & Events (The Bus)
 *   **Mechanism**: The Engine emits **Structured Events**.

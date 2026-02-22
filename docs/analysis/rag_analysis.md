@@ -43,19 +43,22 @@ A solid RAG retrieval pipeline relies entirely on how effectively documents and 
 
 ### 2.3 AST-Based Chunking (Tree-Sitter)
 *   **Description**: Using an Abstract Syntax Tree (AST) parser (e.g., Tree-sitter) to chunk code explicitly by Class, Function, or Method definitions.
-*   **Pros**: Perfectly preserves code integrity. An agent always receives a full functional block, never a half-broken method. Great for tracking which code matches which semantic vector.
-*   **Cons**: Requires maintaining syntax parsers for every supported language (Rust, Python, Kotlin). Very large monolithic classes can still exceed token limits requiring fallback sub-chunking.
+*   **Pros**: Perfectly preserves code integrity. An agent always receives a full functional block, never a half-broken method. Great for tracking which code matches which semantic vector. Improves code generation by feeding structurally complete contexts.
+*   **Cons**: Requires maintaining syntax parsers for every supported language.
+*   **Best Practices for Flow Manager**: 
+    1. **Non-Whitespace Character Counting**: Measure chunk thresholds using non-whitespace character counts rather than raw line counts to maintain consistency across verbose vs. dense coding styles.
+    2. **Recursive Decomposition for God-Classes**: When an AST node (like a massive class) exceeds the context limit, employ a recursive divide-and-combine algorithm to traverse the AST downwards, attempting to merge adjacent sibling nodes (e.g., small helper methods) to maximize information density without breaking syntax.
 
 ### 2.4 State-Boundary Hunking
 *   **Description**: The strategy specifically identified for Flow Manager. Closing a chunk not by size, but when a logical "Regime" or "State" changes (e.g., a regime escape triggered by the Regime Module for data streams).
 *   **Pros**: Perfectly aligns the Vector DB with the system's operational states rather than arbitrary file structures. It creates a map of "States" allowing agents to get logic for an exact state reliably.
 *   **Cons**: High complexity to implement and requires tight integration with system event streams.
 
-### 2.5 Multi-Vector / Summary-Based Chunking
-*   **Description**: For every chunk (e.g., an AST function), an LLM generates a text summary of what the code does. The *summary* is embedded for search, but retrieving the summary returns the *original raw code snippet*.
-*   **Pros**: Drastically improves search accuracy for NLP agents, as summaries capture pure semantic intent ("Handles OAuth login") without the noise of the underlying code syntax.
-*   **Cons**: Computationally expensive and slow during the indexing phase (requires making an LLM call per code chunk).
-*   **Techniques**: Parent-Document Retriever, Multi-Vector Retriever.
+### 2.5 Multi-Vector / Summary-Based Chunking (Parent Document Retriever)
+*   **Description**: Implements a decoupling of the retrieval payload from the synthesis payload. For every large chunk (e.g., an AST function), smaller sub-chunks, summaries, or hypothetical questions are generated and vectorized.
+*   **Pros**: Drastically improves search accuracy. By splitting the retrieval references (summaries/questions) from the synthesis references (the raw, original code), agents match on pure semantic intent ("Handles OAuth login") but are fed the exact structural code to prevent hallucination and logic gaps.
+*   **Cons**: Computationally expensive and slow during the indexing phase (requires making LLM calls per code chunk). Increases vector store complexity.
+*   **Techniques**: Parent-Document Retriever (search on child chunks, return the parent chunk), Multi-Vector Retriever.
 
 ### 2.6 Conclusion & Strategy Recommendation
 Relying on out-of-the-box **Fixed-Size Chunking** is considered a liability for a complex 15-microservice trading architecture involving autonomous agents.
@@ -99,6 +102,17 @@ Relying on out-of-the-box **Fixed-Size Chunking** is considered a liability for 
 
 ---
 
-## 5. Recommended Technology Stack Alignments
+## 5. RAG Evaluation Metrics
+
+A RAG architecture must be continuously measured against objective metrics, ensuring that indexing strategies (like AST and multi-vector) actually improve outcomes.
+
+### 5.1 Key Retrieval Metrics
+*   **Context Precision**: Measures the signal-to-noise ratio of retrieved chunks. If the agent retrieves 5 chunks but only 1 is useful, precision is low. High precision prevents context window flooding.
+*   **Context Recall**: Measures if the retrieval system found *all* the necessary information to solve the query. Low recall forces the agent to hallucinate missing steps.
+*   **Answer Faithfulness**: Evaluates whether the agent's generated action or response is strictly derived from the retrieved context (checking for zero-trust adherence).
+
+---
+
+## 6. Recommended Technology Stack Alignments
 *   **Vector Database**: **Qdrant**. Native to Rust (aligns with Phase 2 V-Next runtime migration strategy), highly optimized for memory footprint, and excels at the complex metadata filtering required for the Zero-Trust Multi-Tenant RAG architecture.
 *   **Embedding Strategy**: Utilize Matryoshka models (e.g., `text-embedding-3`). Truncating high-dimension vectors locally for lower-latency preliminary matching reduces compute waste before refining.
