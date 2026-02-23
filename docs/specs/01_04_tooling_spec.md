@@ -78,9 +78,9 @@ To prevent "Exception Leaking" (where a tool crash brings down the agent), the E
 2.  **Log**: Full stack trace is logged to `debug.log` (not user stream).
 3.  **Return**: A structured `ToolResult(status="error", error={"code": "InternalError", "message": "..."})` is returned to the Agent, allowing it to self-correct or ask for help.
 
-### 2.1.2 Transactional Tool Idempotency (The "Split-Brain" Recovery)
+### 2.1.2 [FUTURE PROPOSAL] Transactional Tool Idempotency (The "Split-Brain" Recovery)
 *   **The Problem:** If an Agent requests a tool with external side-effects (e.g., `git push` via `ShellTool`), and the tool succeeds but the network drops *before* the result reaches the Agent, the Orchestrator crashes. Upon restart from the prior state, the Agent has no memory of the success and may request the tool again, causing corruption.
-*   **The Mechanism:** Tool executions with external side effects must enforce a transactional boundary. The Tool Executor persists a highly granular pre-execution checkpoint (recording the deterministic `Run ID` and pending action) before invoking the side effect. If resumption occurs, the Executor intercepts the duplicate tool call and either returns the cached success or safely aborts.
+*   **The Proposed Mechanism:** Tool executions with external side effects must enforce a transactional boundary. The Tool Executor should persist a highly granular pre-execution checkpoint (recording the deterministic `Run ID` and pending action) before invoking the side effect. If resumption occurs, the Executor intercepts the duplicate tool call and either returns the cached success or safely aborts.
 ```
 
 ### 2.2 Standardized Result Schema (`ToolResult`)
