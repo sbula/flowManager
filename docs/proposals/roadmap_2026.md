@@ -63,16 +63,20 @@ gantt
 
 **Goal**: Refactor the Engine Core (`01_03`) state persistence from file-based JSON/tmp renames to an embedded ACID database (e.g., SQLite with WAL enabled).
 
-**Rationale**: Relying on arbitrary file renaming becomes a locking nightmare and synchronization bottleneck when scaling up to nested sub-flows, map/fan-out parallelism, and concurrent work on multiple features. 
+**Rationale**: Relying on arbitrary file renaming becomes a locking nightmare and synchronization bottleneck when scaling up to nested sub-flows, map/fan-out parallelism, and concurrent work on multiple features. The Database will natively solve Resource Locking (Mutex) and Lineage tracking.
 
 **Deliverables**:
 - [ ] Define strict `StateStoreInterface` Protocol in Python Engine Core.
 - [ ] Implement `SQLiteStateStore` aligning with the Domain Model.
 - [ ] Migrate `flow_state` reads/writes to the synchronous database.
+- [ ] **Engine-Level Resource Locking (Mutex)**: Utilize DB Row-Level locking to implement global Mutexes for flows requiring exclusive access to resources (e.g., git repos).
+- [ ] **Phase 2 Lineage Tracking (Event Sourcing)**: Migrate from the file-based `audit.jsonl` to strongly-typed `DomainEvent` JSONB payloads in the DB for precise Time-Travel debugging and compliance.
 
 **Success Criteria**:
 - SQLite DB handles parallel state writes without deadlocks.
 - Engine correctly hydrates sub-flow state from DB relational tables.
+- Global Mutex locks successfully prevent race conditions on shared external resources.
+- Complete Lineage audit trail is queryable via SQL without missing state transitions.
 
 ### Phase 2: RAG & Context (Months 3-4)
 

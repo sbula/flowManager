@@ -83,6 +83,14 @@ A **Flow** describes a Control Structure (Sequence, Branch, Loop).
     *   **Isolation**: Each parallel step writes its `AtomResult.exports` to its own temporary namespace (e.g., `context.outputs.[branch_id]`).
     *   **Fan-In (Reducer)**: Once all branches complete, the Engine applies a **Reducer Configuration** (e.g., concatenate arrays, merge dictionaries, or map results to specific keys) to safely merge the isolated namespaces back into the dominant `WorkflowState.context_cache` sequentially. It is strictly an Engine-level concern, not an Atom-level concern.
 
+### 3.4.4 Resource Locking (Mutexes)
+*   **Problem**: Certain Atoms (or Sub-Flows) manipulate shared external state (e.g., external databases, git repositories) and cannot safely run concurrently, even if the DAG allows it. Putting Mutex logic inside an `Atom` breaks the stateless principle.
+*   **Mechanism**: **Engine-Level Routing Coordination**.
+    *   **Declaration**: Flows/Steps declare their locking needs in `config` (e.g., `requires_lock: ["git_repo", "prod_db"]`).
+    *   **Acquisition**: The Engine Router intercepts the step. Before dispatching the Atom, the Engine attempts to acquire the required global locks. If unavailable, the Engine places the step in a `WAITING_FOR_LOCK` queue.
+    *   **Release**: The Engine strictly guarantees lock release *after* the Atom yields its `AtomResult` or if the Engine crashes/traps `SIGTERM`.
+    *   **Deadlock Prevention**: Locks must have a defined TTL (Time-To-Live). The engine implements a lock-stealing heartbeat mechanism upon startup to clear zombie locks left by hard OOM/SIGKILL crashes.
+
 ### 3.5. Update & Events (The Bus)
 *   **Mechanism**: The Engine emits **Structured Events**.
 *   **Payload Reference Pattern**:
