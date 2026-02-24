@@ -61,6 +61,13 @@ We adhere to a **Paranoid Security Model**:
 
 We implement a **Native Python Library** (`src/flow/tools/`) exposing tools via the **MCP Interface**.
 
+**Shared Infrastructure Layer (`src/flow/infrastructure/`):**
+Tools are strictly *Domain Wrappers* that enforce IAM, RBAC, and Security Policies. They MUST **not** implement low-level engine logic directly. Instead, they import from the shared infrastructure layer (also used by `Atoms`):
+*   `Loom` (for `FileTool.edit_file`)
+*   `ProcessSupervisor` (for `ShellTool`)
+*   `SmartRedactor` (for `FileTool.read_file` and stream interception)
+*   `Qdrant Vector Client` (for `KnowledgeTool`)
+
 ### 2.1 The Tool Interface
 Every tool must implement:
 ```python
