@@ -68,6 +68,11 @@ Located at: `workflow_core.engine.core.engine`
 *   **Status File**: `status.md` acts as the visible state ledger.
 *   **Checkpoint**: The Engine can save context to disk (`.flow/context.json`) to support resume-on-failure.
 
+### 3.3 Sub-Workflow Orchestration & Hydration
+When a Flow triggers another Flow (Sub-Flow), the Engine manages the boundary.
+*   **Reconciliation Principle**: The Engine MUST NOT spawn a subflow without first checking if a `SubFlow_ID` for that exact DAG node already exists in an `IN_PROGRESS` or `COMPLETED` state. This prevents orphaned subflows during Parent crash recoveries. **CRITICAL (Split-Brain Defense)**: Sub-Flow genesis MUST involve a pre-flight transactional lock or a Two-Phase Commit on the state DB (e.g., Parent writes "Starting Child X", Child confirms) so a crash during process spin-up does not result in an untracked, competing child.
+*   **Deep Hydration (Context Re-Merge)**: When resuming a paused Subflow, the Engine MUST dynamically hydrate it by re-merging `Parent_Context_Live + Child_Local_Context_Live`. The Subflow MUST NOT rely on a stale context snapshot taken at the exact millisecond it was instantiated. This guarantees any out-of-band administrative fixes applied to the Parent context while the child was paused are immediately inherited.
+
 ---
 
 ## 4. Standard Flows
