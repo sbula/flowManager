@@ -3,9 +3,9 @@ import os
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Generator
 
-from src.flow.tools.base import ToolError
+from flow.tools.base import ToolError
 
 logger = logging.getLogger(__name__)
 

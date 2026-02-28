@@ -3,11 +3,14 @@ import json
 import os
 import signal
 import sys
+import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Tuple
 
-from flow.engine.atoms import Atom, ManualInterventionAtom
+from flow.atoms import Atom, AtomResult, ManualInterventionAtom
 from flow.engine.models import RegistryError, RootNotFoundError
 
 if TYPE_CHECKING:
@@ -15,12 +18,13 @@ if TYPE_CHECKING:
 
 
 class Engine:
-    def __init__(self):
+    def __init__(self) -> None:
         self.root: Optional[Path] = None
         self.flow_dir: Optional[Path] = None
         self.registry_map: Dict[str, str] = {}
-        self.persister = None
+        self.persister: Any = None
         self.context: Dict[str, Any] = {}
+        self.expected_version: Optional[str] = None
 
     def hydrate(self):
         """
@@ -92,7 +96,7 @@ class Engine:
 
     def _validate_registry_integrity(self):
         """Paranoid check: Ensure all registered atoms are importable."""
-        from flow.engine.atoms import Atom
+        from flow.atoms import Atom
 
         for atom_name, class_path in self.registry_map.items():
             try:
@@ -134,7 +138,7 @@ class Engine:
         # Policy: Must be distinct tag.
         # Regex: Start/Space + Tag + Space/End
         if re.search(r"(?:^|\s)<!-- type: flow -->(?:$|\s)", task.name):
-            from flow.engine.atoms import FlowEngineAtom
+            from flow.atoms import FlowEngineAtom
 
             return FlowEngineAtom()
 
@@ -152,7 +156,7 @@ class Engine:
         if match:
             atom_key = match.group(1)
 
-            # Lookup in registry
+            # Strict Lookup in registry (Case-Sensitive T2.08)
             if atom_key in self.registry_map:
                 class_path = self.registry_map[atom_key]
                 try:
@@ -173,7 +177,7 @@ class Engine:
                     # Catch everything to ensure Dispatch Safety (T2.04/T2.05)
                     import sys
 
-                    sys.stderr.write(f"DEBUG: Import Failed for {atom_key}: {e}\n")
+                    sys.stderr.write(f"DEBUG: Import Failed for {atom_key}: {e}\\n")
                     import traceback
 
                     traceback.print_exc(file=sys.stderr)
@@ -194,10 +198,35 @@ class Engine:
         try:
             tree = parser.load()
             tree._reindex()
+
+            if (
+                self.expected_version
+                and tree.headers.get("Version")
+                and tree.headers.get("Version") != self.expected_version
+            ):
+                from flow.domain.models import ConfigVersionMismatchError
+
+                raise ConfigVersionMismatchError(
+                    f"Version drifted! Expected {self.expected_version}, got {tree.headers.get('Version')}"
+                )
+
             return tree
-        except Exception:
-            # If load fails, what? Return empty? Or raise?
-            # T3.02 Crash handling might catch this at higher level
+        except Exception as e:
+            # Check for backup recovery (T2.06)
+            from flow.domain.models import (
+                ConfigVersionMismatchError,
+                IntegrityError,
+                StatusParsingError,
+            )
+
+            if isinstance(e, (StatusParsingError, IntegrityError)):
+                try:
+                    parser.decline_changes()
+                    tree = parser.load()
+                    tree._reindex()
+                    return tree
+                except Exception as inner_e:
+                    raise e
             raise
 
     def find_active_task(self) -> Optional["Task"]:
@@ -209,7 +238,7 @@ class Engine:
         return self._recursive_find_active(tree, self.root)
 
     def _recursive_find_active(
-        self, tree: "StatusTree", current_root: Path
+        self, tree: "StatusTree", current_root: Optional[Path]
     ) -> Optional["Task"]:
         """
         Helper that traverses sub-flows (Fractal Zoom).
@@ -227,14 +256,15 @@ class Engine:
                 try:
                     # Path is relative to .flow root of current context?
                     # Actually refs are relative to .flow/
-                    sub_path = SafePath(self.flow_dir, active.ref)
-                    if sub_path.exists():
-                        sub_parser = StatusParser(
-                            self.root
-                        )  # Parser needs project root to find .flow
-                        # Manually load specific file?
-                        sub_tree = sub_parser.load(active.ref)
-                        sub_tree._reindex()
+                    if self.flow_dir is not None and self.root is not None:
+                        sub_path = SafePath(self.flow_dir, active.ref)
+                        if sub_path.exists():
+                            sub_parser = StatusParser(
+                                self.root
+                            )  # Parser needs project root to find .flow
+                            # Manually load specific file?
+                            sub_tree = sub_parser.load(active.ref)
+                            sub_tree._reindex()
 
                         # Recurse
                         deep_active = self._recursive_find_active(sub_tree, self.root)
@@ -271,7 +301,7 @@ class Engine:
         # Logic: If no active task in Root, start first pending.
         return self._find_first_pending(tree.root_tasks)
 
-    def _find_first_pending(self, tasks):
+    def _find_first_pending(self, tasks: List["Task"]) -> Optional["Task"]:
         for t in tasks:
             if t.status == "pending":
                 return t
@@ -288,6 +318,11 @@ class Engine:
         3. Updates State (Active/Done)
         4. Persist
         """
+        if task.status in ("done", "skipped"):
+            print(f"Idempotent skip: task {task.name} is already {task.status}")
+            return
+
+        has_lock = False
         self._validate_hydration()
 
         try:
@@ -296,6 +331,7 @@ class Engine:
 
             # 2. Acquire Lock & Check Circuit Breaker
             self._handle_lock_acquisition_safely(task)
+            has_lock = True
 
             # 2. Execute Task
             self._execute_task_lifecycle(task)
@@ -304,12 +340,13 @@ class Engine:
             self._handle_crash(task, e)
         finally:
             # Restore signal handlers? (For now, process exits anyway)
-            self._release_intent_lock()
+            if has_lock:
+                self._release_intent_lock()
 
-    def _register_signal_handlers(self, task):
+    def _register_signal_handlers(self, task: "Task") -> None:
         # T7.06 SIGINT Handling
-        def handler(signum, frame):
-            print(f"\nCaught signal {signum}. Saving state and exiting...")
+        def handler(signum: int, frame: Any) -> None:
+            print(f"\\nCaught signal {signum}. Saving state and exiting...")
             try:
                 if task:
                     self._handle_crash(
@@ -352,7 +389,115 @@ class Engine:
         self._release_intent_lock()
         raise SystemExit(1)
 
-    def _execute_task_lifecycle(self, task):
+    def _run_atom_isolated(
+        self, atom: "Atom", read_only_context: MappingProxyType
+    ) -> "AtomResult":
+        import concurrent.futures
+
+        # T9 DAU Defenses
+        orig_stdout = sys.stdout
+        orig_environ = os.environ.copy()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(atom.run, read_only_context)  # type: ignore
+            result = future.result()
+
+        # T9.01 sys.stdout Hijacking Defense
+        if sys.stdout is not orig_stdout:
+            sys.stdout = orig_stdout
+            raise RuntimeError("EnvironmentPollutionError: sys.stdout was hijacked!")
+
+        # T9.02 Dynamic os.environ Mutation Defense
+        if os.environ != orig_environ:
+            os.environ.clear()
+            os.environ.update(orig_environ)
+            raise RuntimeError("EnvironmentPollutionError: os.environ was mutated!")
+
+        from flow.atoms import AtomResult
+
+        if not isinstance(result, AtomResult):
+            raise TypeError("Atom did not return an AtomResult")
+
+        return result
+
+    def _handle_retry_status(
+        self, task: "Task", result: "AtomResult"
+    ) -> Literal["pending", "error"]:
+        import sys
+        import time
+
+        # T8.06 Maximum Retry Circuit Breaker
+        retry_key = f"__retry_count_{task.id}__"
+        current_retries = self.context.get(retry_key, 0) + 1
+        self.context[retry_key] = current_retries
+
+        if current_retries > 3:
+            print(
+                f"FATAL_LOOP: Max retries exceeded for {task.id}",
+                file=sys.stderr,
+            )
+            return "error"
+        else:
+            if (
+                hasattr(result, "retry_strategy")
+                and result.retry_strategy
+                and result.retry_strategy.name == "BACKOFF"
+            ):
+                now = time.time()
+                mono = time.monotonic()
+                # Detect temporal drift on a retry loop
+                last_mono = self.context.get(f"__last_mono_{task.id}__")
+                last_time = self.context.get(f"__last_time_{task.id}__")
+                if last_mono and last_time:
+                    mono_diff = mono - last_mono
+                    time_diff = now - last_time
+                    # If time.time() drifts more than 5 seconds from time.monotonic()
+                    if abs(time_diff - mono_diff) > 5.0:
+                        raise RuntimeError(
+                            "NTP Clock Leap / Temporal Drift detected between retries. Safely freezing."
+                        )
+                self.context[f"__last_mono_{task.id}__"] = mono
+                self.context[f"__last_time_{task.id}__"] = now
+                self.context[f"__next_retry_at_{task.id}__"] = now + (
+                    2**current_retries
+                )  # exponential backoff
+            return "pending"
+
+    def _process_atom_result(
+        self, task: "Task", result: "AtomResult"
+    ) -> Literal["pending", "active", "done", "skipped", "error", "RETRY"]:
+        if result and result.success and result.exports:
+            # T3.10 / T6.06 / T6.07 / T6.08: Validate Serialization Safety
+            self._validate_exports_security(result.exports)
+
+            # T5.1.02 Cross-Subflow Variable Type Shadowing
+            for k, v in result.exports.items():
+                if k in self.context:
+                    old_val = self.context[k]
+                    if old_val is not None and type(old_val) != type(v):
+                        raise TypeError(
+                            f"Type shadowing detected for key '{k}': expected {type(old_val).__name__}, got {type(v).__name__}"
+                        )
+
+            self.context.update(result.exports)
+
+        final_status: Literal[
+            "pending", "active", "done", "skipped", "error", "RETRY"
+        ] = "done"
+
+        if hasattr(result.status, "name"):
+            name = result.status.name.upper()
+            if name == "SUCCESS":
+                return "done"
+            elif name == "FAILED":
+                return "error"
+            elif name == "SKIPPED":
+                return "skipped"
+            elif name == "RETRY":
+                return self._handle_retry_status(task, result)
+        return final_status
+
+    def _execute_task_lifecycle(self, task: "Task") -> None:
         import types
 
         # Update State -> Active
@@ -366,38 +511,131 @@ class Engine:
         # Dispatch
         atom = self.dispatch(task)
 
-        # Run with Immutable Context (T3.12)
-        # Atoms receive a Read-Only view to prevent side-channel corruption.
-        read_only_context = types.MappingProxyType(self.context)
-        result = atom.run(read_only_context)
-
-        # Merge Context
-        if result and result.success and result.exports:
-            # T3.10: Validate Serialization Safety
-            # Ensure exports don't contain non-serializable objects
-            # (sockets, files) that would crash the persistence layer later.
-            try:
-                json.dumps(result.exports)
-            except (TypeError, OverflowError) as e:
-                # If non-serializable, we treat this as a Safety Violation
-                # We do NOT merge the exports.
-                raise RuntimeError(f"Atom returned non-serializable exports: {e}")
-
-            self.context.update(result.exports)
-
-        # Update State -> Done
-        tree.update_task(task.id, status="done")
-        self.persister.save(tree)
-
-    def _handle_crash(self, task, e):
-        print(f"CRASH: {e}", file=sys.stderr)
         try:
+            read_only_context = MappingProxyType(self.context)
+            result = self._run_atom_isolated(atom, read_only_context)
+            final_status = self._process_atom_result(task, result)
+
+            # T3.07 Phantom Lock Deletion Defense
+            if self.flow_dir:
+                lock_file = self.flow_dir / "intent.lock"
+                if not lock_file.exists():
+                    from flow.domain.models import LostLockError
+
+                    raise LostLockError(
+                        "Phantom Lock Deletion! Intent.lock is missing during execution!"
+                    )
+
             tree = self.load_status()
+            tree.update_task(task.id, status=final_status)
+            self.persister.save(tree)
+        finally:
+            if not getattr(atom, "_cleanup_called", False):
+                import concurrent.futures
+
+                executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                cleanup_future = executor.submit(atom.cleanup)
+                try:
+                    cleanup_future.result(
+                        timeout=2.0
+                    )  # T8.13 Hanging Isolation Timeout
+                except concurrent.futures.TimeoutError:
+                    print(
+                        f"CLEANUP TIMEOUT: atom {task.id} exceeded teardown budget",
+                        file=sys.stderr,
+                    )
+                except Exception as e:
+                    import traceback
+
+                    print(f"CLEANUP ERROR: {e}", file=sys.stderr)
+                    traceback.print_exc()
+                finally:
+                    executor.shutdown(wait=False, cancel_futures=True)
+
+    def _handle_crash(self, task: "Task", e: Exception) -> None:
+        """Handles unhandled Atom exceptions and updates state gracefully."""
+        import sys
+
+        try:
+            import traceback
+
+            print(f"CRASH: {e}", file=sys.stderr)
+            traceback.print_exc()
+
+            tree = self.load_status()
+            # Depending on V1.2 specifications, failed states map to specific statuses.
+            # Usually we use 'error', but map to 'skipped' / 'failed' based on requirements.
             tree.update_task(task.id, status="error")
             self.persister.save(tree)
-        except Exception:
-            pass
-        raise SystemExit(1)
+        except Exception as meta_e:
+            import sys
+
+            print(
+                f"DOUBLE FAULT in crash handler: {type(meta_e).__name__}",
+                file=sys.stderr,
+            )
+            try:
+                # Secondary fallback: attempt minimal safe state update without relying on str(e)
+                tree = self.load_status()
+                tree.update_task(task.id, status="error")  # 'FAILED_CRITICAL' mapping
+                self.persister.save(tree)
+            except Exception:
+                pass  # Last resort, prevent global thread crash
+
+        sys.exit(1)
+
+    def _validate_exports_security(self, exports: Dict[str, Any]) -> None:
+        import re
+
+        # 1. JSON Strictness & NaN / Infinity (T6.06)
+        try:
+            payload = json.dumps(exports, allow_nan=False)
+            # T7.01 The OOM Defense (String Size Limit)
+            if len(payload) > 500 * 1024:
+                from flow.domain.models import PayloadTooLargeError
+
+                raise PayloadTooLargeError(
+                    "OOM Defense (T7.01): Exports size limit exceeded"
+                )
+        except (TypeError, OverflowError, ValueError) as e:
+            raise RuntimeError(f"Atom returned non-serializable exports: {e}")
+
+        # 2. Escape Sequence Poisoning (T6.08)
+        # json.dumps escapes \x1b as \u001b or \\x1b depending on literal input
+        if re.search(r"(\\u001b|\x1b|\\\\x1b)\[", payload):
+            raise ValueError("ANSI_Escape_Sequence_Detected")
+
+        # 3. Massively Nested (T6.07) & Strict Types (T6.11-T6.15)
+        def validate_node(obj: Any, depth: int = 0) -> None:
+            if depth > 500:
+                raise ValueError("Max_Nesting_Exceeded")
+
+            # T6.15: Strict MRO Injection Prevention (reject subclassing)
+            if type(obj) is dict:
+                for k, v in obj.items():
+                    if not isinstance(k, str):
+                        raise TypeError(
+                            "Export dict keys must be strict strings (T6.11)"
+                        )
+                    # T6.12 & T6.13: Dunder Key & Reserved Key Poisoning
+                    if k.startswith("__") or k in ["run_id", "status"]:
+                        raise ValueError(
+                            f"Reserved or Dunder key injection restricted: {k}"
+                        )
+                    validate_node(v, depth + 1)
+
+            elif type(obj) is list:
+                for v in obj:
+                    validate_node(v, depth + 1)
+            elif type(obj) in (int, float, str, bool, type(None)):
+                pass  # Safe primitives
+            else:
+                # T6.14 & T6.15: Reject tuples, sets, CustomDict subclasses, etc.
+                raise TypeError(
+                    f"Strict validation requires exact types, rejected: {type(obj)}"
+                )
+
+        validate_node(exports)
 
     def _acquire_intent_lock(self, task_id: str):
         flow_dir = self.flow_dir
@@ -431,18 +669,31 @@ class Engine:
                                 f"Giving up."
                             )
 
-                    # 3. Check Stale Lock (Zombie Stealing T3.11)
                     else:
-                        # Different task is locked. Is it alive?
-                        timestamp = lock_data.get("timestamp", 0)
-                        if time.time() - timestamp > 30:  # 30s timeout
-                            # Steal it
-                            pass
+                        # 3. Check Stale Lock (Zombie Stealing T3.11)
+                        # T3.06 NTP Clock Skew Defense via Filesystem Time Anchor
+                        # Use a probe to get the true current filesystem time
+                        probe_file = lock_file.with_name("time.probe")
+                        try:
+                            probe_file.touch()
+                            current_fs_time = probe_file.stat().st_mtime
+                            probe_file.unlink()
+                        except OSError:
+                            current_fs_time = time.time()
+
+                        lock_fs_time = lock_file.stat().st_mtime
+
+                        if (
+                            current_fs_time - lock_fs_time > 30
+                        ):  # 30s timeout based on FS time
+                            try:
+                                lock_file.unlink()
+                            except FileNotFoundError:
+                                pass
                         else:
                             raise RuntimeError(
                                 f"Engine Locked by {lock_data.get('task_id')}"
                             )
-
             except (json.JSONDecodeError, OSError):
                 # Corrupt lock - Steal it
                 pass
@@ -466,3 +717,25 @@ class Engine:
                     lock_file.unlink()
                 except OSError:
                     pass
+
+
+def fan_in_reducer(base_snapshot: Dict[str, Any], *branch_contexts: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Merges multiple branch contexts (or exports) back into a base snapshot.
+    Raises SchemaCollisionError if multiple branches modified or exported the same key.
+    """
+    merged = dict(base_snapshot)
+    modifications = {}  # key -> branch_index
+
+    # Identify changes per branch
+    for i, branch in enumerate(branch_contexts):
+        for k, v in branch.items():
+            # If the key is new or the value differs from base
+            if k not in base_snapshot or base_snapshot[k] != v:
+                if k in modifications and modifications[k] != i:
+                    from flow.domain.models import SchemaCollisionError
+                    raise SchemaCollisionError(f"Topological Merge Conflict: Key '{k}' modified by multiple parallel branches.")
+                modifications[k] = i
+                merged[k] = v
+
+    return merged

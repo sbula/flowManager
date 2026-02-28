@@ -1,11 +1,9 @@
 import os
 import sys
-from pathlib import Path
 
 # Add src to path
 sys.path.append(os.getcwd())
 
-from flow.domain.models import StatusTree, Task
 from flow.engine.core import Engine
 
 

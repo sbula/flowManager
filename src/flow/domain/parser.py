@@ -5,7 +5,7 @@ import json
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from flow.domain.models import IntegrityError, StatusParsingError, StatusTree, Task
 
@@ -25,6 +25,10 @@ class StatusParser:
         print(
             f"DEBUG: Loading {status_path} from {full_path}. Exists: {full_path.exists()}"
         )
+        # T2.12 Phantom Resume on Deleted State
+        if not self.flow_dir.exists():
+            raise FileNotFoundError(f"Flow directory {self.flow_dir} is missing.")
+
         if not full_path.exists():
             print("DEBUG: File missing, returning empty tree.")
             return StatusTree()
@@ -159,6 +163,7 @@ class StatusParser:
                 indent_level=indent_level,
                 ref=ref,
                 parent=None,
+                retry_count=0,
             )
             self._add_to_tree(tree, stack, new_task, indent_level, i)
 

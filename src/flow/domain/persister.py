@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Union
 
-from flow.domain.models import IntegrityError, StatusTree, Task
+from flow.domain.models import StatusTree, Task
 
 
 class StatusPersister:
@@ -15,6 +15,20 @@ class StatusPersister:
         self.backups_dir = self.flow_dir / "backups"
 
     def save(self, tree: StatusTree, filename: str = "status.md") -> None:
+        """Saves with robust retry loop to handle Windows OS level concurrent file locks."""
+        import os
+        import time
+
+        for i in range(10):
+            try:
+                self._save_internal(tree, filename)
+                return
+            except (PermissionError, OSError) as e:
+                if i == 9:
+                    raise
+                time.sleep(0.05)
+
+    def _save_internal(self, tree: StatusTree, filename: str) -> None:
         """
         Saves the StatusTree to disk with strict formatting and integrity protections.
         1. Backup existing file.
@@ -24,8 +38,11 @@ class StatusPersister:
         full_path = self.flow_dir / filename
 
         # 1. Backup if exists
-        if full_path.exists():
-            self._create_backup(full_path)
+        try:
+            if full_path.exists():
+                self._create_backup(full_path)
+        except OSError:
+            pass  # Backup fails if file is locked, acceptable loss during intense concurrency
 
         # 2. Serialize & Write Atomically
         tree.validate_consistency()  # Enforce Strictly (T3.11)
@@ -33,7 +50,13 @@ class StatusPersister:
 
         # Ensure parent exists
         full_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = full_path.with_suffix(".tmp")
+        import os
+        import threading
+        import time
+
+        tmp_path = full_path.with_name(
+            f"{full_path.name}.tmp_{os.getpid()}_{threading.get_ident()}_{time.time_ns()}"
+        )
 
         with open(tmp_path, "w", encoding="utf-8", newline="\n") as f:
             f.write(content)
@@ -77,8 +100,15 @@ class StatusPersister:
         meta_path = file_path.with_suffix(".meta")
         meta = {"hash": sha, "timestamp": time.time()}
 
-        with open(meta_path, "w", encoding="utf-8", newline="\n") as f:
+        import os
+        import threading
+
+        tmp_meta = meta_path.with_name(
+            f"{meta_path.name}.tmp_{os.getpid()}_{threading.get_ident()}_{time.time_ns()}"
+        )
+        with open(tmp_meta, "w", encoding="utf-8", newline="\n") as f:
             json.dump(meta, f, indent=2)
+        self._atomic_rename(tmp_meta, meta_path)
 
     def _serialize(self, tree: StatusTree) -> str:
         """Converts Tree to Markdown String (Strict 4-space indent)."""

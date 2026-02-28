@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, PrivateAttr
 
@@ -23,6 +23,46 @@ class IntegrityError(Exception):
     pass
 
 
+class ConfigVersionMismatchError(Exception):
+    """Raised when DAG version hash changes during flow execution."""
+
+    pass
+
+
+class DomainError(Exception):
+    """Base class for domain-specific errors."""
+
+    pass
+
+
+class PayloadTooLargeError(DomainError):
+    """Raised when context or export payload exceeds limits."""
+
+
+class UnauthorizedSubflowError(DomainError):
+    """Raised when an LLM tries to call a DAG Subflow router instead of a Tool."""
+
+
+class LostLockError(DomainError):
+    """Raised when phantom lock deletion occurs during execution."""
+
+
+class SchemaCollisionError(DomainError):
+    """Raised when separate parallel branches export the same key during Fan-In."""
+
+
+class StateNotFoundError(Exception):
+    """Raised when flow state DB mapping is missing."""
+
+    pass
+
+
+class StateCorruptionError(DomainError):
+    """Raised when state WAL checksum or integrity fails."""
+
+    pass
+
+
 class StatusParsingError(Exception):
     """Custom exception for all parsing/validation failures."""
 
@@ -33,11 +73,15 @@ class Task(BaseModel):
     """Represents a single task in the hierarchy."""
 
     id: str = Field(..., description="Unique identifier within sibling scope")
-    name: str
-    status: str = Field(..., pattern=r"^(pending|active|done|skipped|error)$")
-    indent_level: int
-    ref: Optional[str] = None  # Fractal link (relative to .flow/)
-    parent: Optional[Task] = Field(None, exclude=True)  # Backref (not serialized)
+    name: str = Field(..., description="Task descriptive name")
+    status: Literal["pending", "active", "done", "skipped", "error", "RETRY"] = Field(
+        "pending", description="pending, active, done, skipped, error"
+    )
+    indent_level: int = Field(0, description="Nesting level for visual representation")
+    ref: Optional[str] = Field(None, description="Pointer to sub-flow definition file")
+    retry_count: int = Field(0, description="Number of times failed with RETRY status")
+
+    parent: Optional["Task"] = Field(None, exclude=True)  # Backref (not serialized)
     children: List[Task] = Field(default_factory=list)
 
     model_config = {"arbitrary_types_allowed": True, "validate_assignment": True}
@@ -97,7 +141,9 @@ class StatusTree(BaseModel):
         self,
         parent_id: str,
         name: str,
-        status: str = "pending",
+        status: Literal[
+            "pending", "active", "done", "skipped", "error", "RETRY"
+        ] = "pending",
         index: Optional[int] = None,
     ):
         """
@@ -121,7 +167,13 @@ class StatusTree(BaseModel):
         # Create Task (ID is placeholder, will be invalid anyway)
         # Note: parent defaults to None, which is valid for BaseModel if Optional
         new_task = Task(
-            id="TBD", name=name, status=status, indent_level=0, parent=None
+            id="TBD",
+            name=name,
+            status=status,
+            indent_level=0,
+            parent=None,
+            ref=None,
+            retry_count=0,
         )  # Indent fixed on save/recalc
 
         # Insert
@@ -160,7 +212,9 @@ class StatusTree(BaseModel):
         self,
         task_id: str,
         name: Optional[str] = None,
-        status: Optional[str] = None,
+        status: Optional[
+            Literal["pending", "active", "done", "skipped", "error", "RETRY"]
+        ] = None,
         context_anchor: Optional[str] = None,
     ):
         """
@@ -181,7 +235,9 @@ class StatusTree(BaseModel):
         if status:
             if status == "active" and task.status != "active":
                 # Validate Transition
-                siblings = self.root_tasks if not task.parent else task.parent.children
+                siblings = (
+                    self.root_tasks if task.parent is None else task.parent.children
+                )
                 # Fix: If task.parent is None, we are a root task. Parent ref is "root".
                 parent_ref = "root" if task.parent is None else task.parent
 
@@ -200,7 +256,7 @@ class StatusTree(BaseModel):
         1. Activation Bubble: Child Active/Done -> Parent Active (if pending).
         2. Completion Bubble: ALL Children Done -> Parent Done.
         """
-        if not task.parent:
+        if task.parent is None:
             return
 
         parent = task.parent
@@ -226,7 +282,7 @@ class StatusTree(BaseModel):
         """Removes a task. Invalidates IDs."""
         task = self.find_task(task_id)
 
-        if task.parent:
+        if task.parent is not None:
             task.parent.children.remove(task)
         else:
             self.root_tasks.remove(task)

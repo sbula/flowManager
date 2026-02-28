@@ -1,6 +1,6 @@
-from flow.engine.atoms import Atom, AtomResult
+from flow.atoms import Atom, AtomResult, AtomStatus
 
 
 class MockGitAtom(Atom):
     def run(self, context, **kwargs):
-        return AtomResult(True, "Git Ran")
+        return AtomResult(AtomStatus.SUCCESS, "Git Ran")

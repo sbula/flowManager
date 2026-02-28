@@ -1,9 +1,8 @@
 import os
-from pathlib import Path
 
 import pytest
 
-from src.flow.tools.base import ToolContext, ToolResult
+from src.flow.tools.base import ToolContext
 from src.flow.tools.file import FileTool
 
 

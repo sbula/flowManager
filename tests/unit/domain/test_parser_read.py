@@ -1,8 +1,6 @@
-from pathlib import Path
-
 import pytest
 
-from flow.domain.models import StatusParsingError, StatusTree, Task
+from flow.domain.models import StatusParsingError, StatusTree
 from flow.domain.parser import StatusParser
 
 # Constants for Testing

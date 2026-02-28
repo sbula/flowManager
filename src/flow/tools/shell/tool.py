@@ -1,7 +1,7 @@
 import subprocess
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from src.flow.tools.base import Tool, ToolContext, ToolError, ToolResult
+from flow.tools.base import Tool, ToolContext, ToolError, ToolResult
 
 
 class ShellTool(Tool):
@@ -103,7 +103,9 @@ class ShellTool(Tool):
                 status="error", error={"code": "InternalError", "message": str(e)}
             )
 
-    def _install_dependencies(self, manager: str, context: ToolContext) -> ToolResult:
+    def _install_dependencies(
+        self, manager: Optional[str], context: ToolContext
+    ) -> ToolResult:
         if manager == "npm":
             cmd = ["npm", "ci"]
         elif manager == "poetry":
@@ -124,7 +126,7 @@ class ShellTool(Tool):
         return self._run_command(cmd, context)
 
     def _git_checkout(
-        self, branch: str, create: bool, context: ToolContext
+        self, branch: Optional[str], create: bool, context: ToolContext
     ) -> ToolResult:
         if not branch:
             raise ToolError("Branch name required", code="ValidationError")
@@ -136,7 +138,9 @@ class ShellTool(Tool):
 
         return self._run_command(cmd, context)
 
-    def _git_push(self, remote: str, branch: str, context: ToolContext) -> ToolResult:
+    def _git_push(
+        self, remote: str, branch: Optional[str], context: ToolContext
+    ) -> ToolResult:
         # RBAC Check
         if context.role != "release_manager":
             raise ToolError(
@@ -153,7 +157,10 @@ class ShellTool(Tool):
         return self._run_command(["git"] + args, context)
 
     def _run_test(
-        self, target: str, truncation_strategy: str, context: ToolContext
+        self,
+        target: Optional[str],
+        truncation_strategy: Optional[str],
+        context: ToolContext,
     ) -> ToolResult:
         # Default to pytest
         cmd = ["pytest"]
@@ -172,7 +179,7 @@ class ShellTool(Tool):
 
         return self._run_command(cmd, context)
 
-    def _run_lint(self, target: str, context: ToolContext) -> ToolResult:
+    def _run_lint(self, target: Optional[str], context: ToolContext) -> ToolResult:
         # Default to a script or standard tool. Assuming flake8/mypy or a 'lint' script
         # If 'run_lint' is generic, maybe we check for a 'lint' script in package.json or Makefile?
         # For now, let's assume 'pylint' or check if 'npm run lint' is better?
@@ -194,6 +201,67 @@ class ShellTool(Tool):
 
         return self._run_command(cmd, context)
 
+    def _read_output_stream(
+        self, stream: Any, buffer: List[str], state: Dict[str, Any], is_stdout: bool
+    ) -> None:
+        try:
+            while True:
+                chunk = stream.read(4096)
+                if not chunk:
+                    break
+
+                chunk_len = len(chunk)
+
+                if is_stdout:
+                    if state["out_size"] + chunk_len > self.MAX_BUFFER_SIZE:
+                        state["limit_exceeded"] = True
+                        remaining = self.MAX_BUFFER_SIZE - state["out_size"]
+                        if remaining > 0:
+                            buffer.append(chunk[:remaining])
+                        buffer.append("\n[TRUNCATED: Output Limit Exceeded]")
+                        break
+                    state["out_size"] += chunk_len
+                else:
+                    if state["err_size"] + chunk_len > self.MAX_BUFFER_SIZE:
+                        remaining = self.MAX_BUFFER_SIZE - state["err_size"]
+                        if remaining > 0:
+                            buffer.append(chunk[:remaining])
+                        buffer.append("\n[TRUNCATED]")
+                        break
+                    state["err_size"] += chunk_len
+
+                buffer.append(chunk)
+        except Exception:
+            pass
+
+    def _wait_for_process(
+        self,
+        process: Any,
+        t_out: Any,
+        t_err: Any,
+        timeout: int,
+        start_time: float,
+        state: Dict[str, Any],
+    ) -> None:
+        import subprocess
+        import time
+
+        while t_out.is_alive() or t_err.is_alive():
+            if state["limit_exceeded"]:
+                process.kill()
+                break
+
+            if time.time() - start_time > timeout:
+                process.kill()
+                raise subprocess.TimeoutExpired(process.args, timeout)
+
+            time.sleep(0.1)
+            if process.poll() is not None:
+                # Process finished, wait for threads to drain buffers
+                t_out.join(timeout=1)
+                t_err.join(timeout=1)
+                break
+
     def _run_command(self, cmd: List[str], context: ToolContext) -> ToolResult:
         # Advanced subprocess wrapper with Job Object and Stream Buffering
         import os
@@ -209,50 +277,9 @@ class ShellTool(Tool):
                 pass
 
         process = None
-        stdout_buffer = []
-        stderr_buffer = []
-        current_out_size = 0
-        current_err_size = 0
-
-        limit_exceeded = False
-
-        def read_stream(stream, buffer, is_stdout):
-            nonlocal current_out_size, current_err_size, limit_exceeded
-            try:
-                while True:
-                    chunk = stream.read(4096)
-                    if not chunk:
-                        break
-
-                    chunk_len = len(chunk)
-
-                    if is_stdout:
-                        if current_out_size + chunk_len > self.MAX_BUFFER_SIZE:
-                            limit_exceeded = True
-                            # Truncate and stop
-                            remaining = self.MAX_BUFFER_SIZE - current_out_size
-                            if remaining > 0:
-                                buffer.append(chunk[:remaining])
-                            buffer.append("\n[TRUNCATED: Output Limit Exceeded]")
-                            # We can't easily kill from thread, so we accept the flag
-                            # and let the main waiter handle it?
-                            # Or just close stream?
-                            break
-                        current_out_size += chunk_len
-                    else:
-                        if current_err_size + chunk_len > self.MAX_BUFFER_SIZE:
-                            # Stderr buffer limit (separate or shared? Spec implies total?)
-                            # Let's apply same limit to stderr for safety
-                            remaining = self.MAX_BUFFER_SIZE - current_err_size
-                            if remaining > 0:
-                                buffer.append(chunk[:remaining])
-                            buffer.append("\n[TRUNCATED]")
-                            break
-                        current_err_size += chunk_len
-
-                    buffer.append(chunk)
-            except Exception:
-                pass
+        stdout_buffer: List[str] = []
+        stderr_buffer: List[str] = []
+        state = {"out_size": 0, "err_size": 0, "limit_exceeded": False}
 
         try:
             cwd = context.service_root
@@ -270,38 +297,26 @@ class ShellTool(Tool):
 
             # Assign to Job Object immediately
             if job:
-                job.assign_process(int(process._handle))
+                job.assign_process(int(process._handle))  # type: ignore
 
             # Start Reader Threads
             t_out = threading.Thread(
-                target=read_stream, args=(process.stdout, stdout_buffer, True)
+                target=self._read_output_stream,
+                args=(process.stdout, stdout_buffer, state, True),
             )
             t_err = threading.Thread(
-                target=read_stream, args=(process.stderr, stderr_buffer, False)
+                target=self._read_output_stream,
+                args=(process.stderr, stderr_buffer, state, False),
             )
             t_out.start()
             t_err.start()
 
-            start_time = (
-                os.time.time() if hasattr(os, "time") else __import__("time").time()
-            )
+            import time
+
+            start_time = time.time()
             timeout = 300
 
-            while t_out.is_alive() or t_err.is_alive():
-                if limit_exceeded:
-                    process.kill()
-                    break
-
-                if __import__("time").time() - start_time > timeout:
-                    process.kill()
-                    raise subprocess.TimeoutExpired(cmd, timeout)
-
-                __import__("time").sleep(0.1)
-                if process.poll() is not None:
-                    # Process finished, wait for threads to drain buffers
-                    t_out.join(timeout=1)
-                    t_err.join(timeout=1)
-                    break
+            self._wait_for_process(process, t_out, t_err, timeout, start_time, state)
 
             # Ensure threads join
             t_out.join(timeout=1)
@@ -310,7 +325,7 @@ class ShellTool(Tool):
             stdout_str = "".join(stdout_buffer)
             stderr_str = "".join(stderr_buffer)
 
-            if limit_exceeded:
+            if state["limit_exceeded"]:
                 return ToolResult(
                     status="error",
                     error={

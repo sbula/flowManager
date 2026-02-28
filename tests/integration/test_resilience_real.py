@@ -4,8 +4,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 from flow.domain.models import StatusTree, Task
 from flow.domain.persister import StatusPersister
 

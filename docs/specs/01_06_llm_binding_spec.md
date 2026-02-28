@@ -1,4 +1,4 @@
-# 01_05 LLM Binding & Selection Specification
+# 01_06 LLM Binding & Selection Specification
 
 > **Status**: DRAFT
 > **Owner**: Architecture Team

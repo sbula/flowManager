@@ -1,4 +1,4 @@
-# 01_06 RAG Specification
+# 01_09 RAG Specification
 
 > **Status**: DRAFT
 > **Owner**: Architecture Team

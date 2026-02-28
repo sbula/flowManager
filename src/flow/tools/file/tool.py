@@ -1,11 +1,11 @@
 import logging
 import os
-import time
+import re
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from src.flow.tools.base import Tool, ToolContext, ToolError, ToolResult
+from flow.tools.base import Tool, ToolContext, ToolError, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +293,9 @@ class FileTool(Tool):
         path.mkdir(parents=True, exist_ok=True)
         return ToolResult(status="success", data={"message": "Directory created"})
 
-    def _search_file(self, path: Path, regex: str, recursive: bool) -> ToolResult:
+    def _search_file(
+        self, path: Path, regex: Optional[str] = None, recursive: bool = False
+    ) -> ToolResult:
         if not regex:
             raise ToolError("Regex required for search", code="ValidationError")
 
@@ -306,6 +308,8 @@ class FileTool(Tool):
 
         matches = []
         files_to_search = []
+
+        # Assuming file_path is already validated and converted to Path by the public method
 
         if path.is_file():
             files_to_search.append(path)
@@ -334,7 +338,9 @@ class FileTool(Tool):
 
         return ToolResult(status="success", data={"matches": matches})
 
-    def _count_matches(self, path: Path, regex: str, recursive: bool) -> ToolResult:
+    def _count_matches(
+        self, path: Path, regex: Optional[str] = None, recursive: bool = False
+    ) -> ToolResult:
         if not regex:
             raise ToolError("Regex required for count", code="ValidationError")
 

@@ -1,9 +1,9 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from src.flow.tools.base import ToolContext, ToolError
-from src.flow.tools.file import FileTool
+from flow.tools.base import ToolContext, ToolError
+from flow.tools.file import FileTool
 
 
 @pytest.fixture
@@ -54,9 +54,8 @@ def test_edit_file_regex(file_tool, context, tmp_path):
 
 def test_lock_manager_pid_check(tmp_path):
     """T2.03: Verify stale lock recovery via PID check."""
-    from unittest.mock import patch
 
-    from src.flow.tools.file.loom.lock_manager import LockManager
+    from flow.tools.file.loom.lock_manager import LockManager
 
     manager = LockManager(timeout_seconds=30)
     target = tmp_path / "target.txt"
@@ -64,7 +63,7 @@ def test_lock_manager_pid_check(tmp_path):
 
     # Create a "stale" lock file with a non-existent PID
     # .lock.target.txt.99999
-    lock_file = tmp_path / f".lock.target.txt.99999"
+    lock_file = tmp_path / ".lock.target.txt.99999"
     lock_file.touch()
 
     # Mock _process_exists to return False (Dead PID)
@@ -83,17 +82,15 @@ def test_lock_manager_pid_check(tmp_path):
 
 def test_lock_manager_pid_alive_contention(tmp_path):
     """T2.04: Verify active lock contention (PID Alive)."""
-    from unittest.mock import patch
 
-    from src.flow.tools.base import ToolError
-    from src.flow.tools.file.loom.lock_manager import LockManager
+    from flow.tools.file.loom.lock_manager import LockManager
 
     manager = LockManager(timeout_seconds=30)
     target = tmp_path / "target.txt"
     target.touch()
 
     # Lock with "Alive" PID
-    lock_file = tmp_path / f".lock.target.txt.88888"
+    lock_file = tmp_path / ".lock.target.txt.88888"
     lock_file.touch()
 
     # Mock _process_exists to return True (Alive)

@@ -1,6 +1,6 @@
 import logging
 import traceback
-from typing import Any, Dict, List, Union
+from typing import Any, Dict
 
 from ..security.redactor import StreamRedactor
 from ..tools.base import Tool, ToolContext, ToolError, ToolResult

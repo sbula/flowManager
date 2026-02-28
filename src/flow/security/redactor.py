@@ -1,7 +1,8 @@
+import logging
 import math
 import os
 import re
-from typing import List, Pattern, Set
+from typing import Dict, Optional, Set
 
 
 class StreamRedactor:
@@ -85,7 +86,7 @@ class StreamRedactor:
         length = len(data)
 
         # Count frequencies
-        freqs = {}
+        freqs: Dict[str, int] = {}
         for char in data:
             freqs[char] = freqs.get(char, 0) + 1
 

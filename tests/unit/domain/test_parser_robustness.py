@@ -1,6 +1,5 @@
 import pytest
 
-from flow.domain.models import StatusTree
 from flow.domain.parser import StatusParser, StatusParsingError
 
 FLOW_DIR_NAME = ".flow"

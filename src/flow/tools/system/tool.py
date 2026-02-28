@@ -2,7 +2,7 @@ import shutil
 import subprocess
 from typing import Any, Dict, List, Optional
 
-from src.flow.tools.base import Tool, ToolContext, ToolError, ToolResult
+from flow.tools.base import Tool, ToolContext, ToolError, ToolResult
 
 
 class SystemTool(Tool):
@@ -80,7 +80,11 @@ class SystemTool(Tool):
             )
 
     def _install_package(
-        self, manager: str, package: str, version: Optional[str], context: ToolContext
+        self,
+        manager: Optional[str],
+        package: Optional[str],
+        version: Optional[str],
+        context: ToolContext,
     ) -> ToolResult:
         if not package:
             raise ToolError("Package name required", code="ValidationError")
@@ -106,7 +110,7 @@ class SystemTool(Tool):
         return self._run_command(cmd, context)
 
     def _system_ctl(
-        self, service: str, action: str, context: ToolContext
+        self, service: Optional[str], action: Optional[str], context: ToolContext
     ) -> ToolResult:
         if not service or not action:
             raise ToolError("Service and action required", code="ValidationError")
@@ -118,13 +122,17 @@ class SystemTool(Tool):
         cmd = ["sudo", "systemctl", action, service]
         return self._run_command(cmd, context)
 
-    def _verify_binary(self, binary_name: str) -> ToolResult:
+    def _verify_binary(self, binary_name: Optional[str] = None) -> ToolResult:
+        if not binary_name:
+            raise ToolError("Binary name required", code="ValidationError")
         path = shutil.which(binary_name)
         return ToolResult(
             status="success", data={"exists": bool(path), "path": path or ""}
         )
 
-    def _migrate_config(self, target_version: str, context: ToolContext) -> ToolResult:
+    def _migrate_config(
+        self, target_version: Optional[str], context: ToolContext
+    ) -> ToolResult:
         if not target_version:
             raise ToolError("Target version required", code="ValidationError")
 

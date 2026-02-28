@@ -1,8 +1,4 @@
-import shutil
-
-import pytest
-
-from flow.engine.events import Event, EventBus
+from flow.engine.events import EventBus
 
 
 def test_t5_01_payload_inline(tmp_path):

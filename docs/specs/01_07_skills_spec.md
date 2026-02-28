@@ -1,4 +1,4 @@
-# 01_08 Skills and Personas Specification
+# 01_07 Skills and Personas Specification
 
 > **Status**: DRAFT
 > **Owner**: Architecture Team

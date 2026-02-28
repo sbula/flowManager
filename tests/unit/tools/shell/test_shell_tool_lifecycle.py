@@ -1,7 +1,4 @@
-import os
-import subprocess
-import sys
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

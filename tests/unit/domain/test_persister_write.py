@@ -1,11 +1,10 @@
 import hashlib
 import json
-from pathlib import Path
 
 import pytest
 
-from flow.domain.models import StateError, StatusTree, Task
-from flow.domain.persister import IntegrityError, StatusPersister
+from flow.domain.models import StatusTree, Task
+from flow.domain.persister import StatusPersister
 
 
 # Helpers
@@ -117,9 +116,11 @@ def test_t1_13_tamper_detection(temp_flow):
     path.write_text(content + "\n- [ ] Hacker Task", encoding="utf-8")
 
     # Load should fail (Integrity check in Parser, see test_integrity.py)
-    # This integration test verifies the Persister allows writing valid files,
-    # but doesn't strictly prevent reading bad ones (Check is on Read).
-    pass
+    from flow.domain.parser import StatusParser
+    from flow.domain.models import IntegrityError
+    
+    with pytest.raises(IntegrityError):
+        StatusParser(temp_flow.parent).load("status.md")
 
 
 # --- T3.09 Content Fidelity ---
@@ -157,13 +158,6 @@ def test_t3_03_unicode_safety(temp_flow):
 
     content = (temp_flow / "unicode.md").read_text("utf-8")
     assert "Emoji 🐍" in content
-
-
-# --- T3.04 Permission (Mocked) ---
-# skipping complex file-system permission mocking for T3.04 in unit test
-# (relies on OS specific behavior).
-# Assumed handled by OS generic exceptions.
-
 
 # --- T3.06 Line Endings ---
 def test_t3_06_line_endings(temp_flow):

@@ -1,14 +1,9 @@
 import json
-import os
-import shutil
 import sys
-from pathlib import Path
 
 import pytest
 
-from flow.domain.models import StatusTree, Task
 from flow.engine.core import Engine
-from flow.engine.events import EventBus
 
 # Integration tests need a real environment (tmp_path)
 # but we import real components (Engine, Persister, Atoms)
@@ -68,11 +63,11 @@ def test_full_run_success(env):
     # Since we are strict V1.3, let's create a real python file for the atom.
 
     atom_code = """
-from flow.engine.atoms import Atom, AtomResult
+from flow.atoms import Atom, AtomResult, AtomStatus
 
 class SuccessAtom(Atom):
     def run(self, context, **kwargs):
-        return AtomResult(True, "Success", exports={"run_id": 1})
+        return AtomResult(AtomStatus.SUCCESS, "Success", exports={"run_id": 1})
 """
     (env / "custom_atoms.py").write_text(atom_code, encoding="utf-8")
 
@@ -120,7 +115,7 @@ def test_crash_recovery_e2e(env):
 
     # 1. Setup Crashing Atom
     atom_code = """
-from flow.engine.atoms import Atom, AtomResult
+from flow.atoms import Atom, AtomResult, AtomStatus
 
 class CrashAtom(Atom):
     def run(self, context, **kwargs):

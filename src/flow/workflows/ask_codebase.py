@@ -1,7 +1,6 @@
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, Dict
 
 # Ensure project root is in sys.path
 sys.path.append(str(Path(__file__).resolve().parents[3]))
@@ -30,6 +29,7 @@ def run_ask_codebase(query: str, profile: str = "default"):
     # Create a transient task
     task = Task(
         id="manual-query",
+        parent=None,
         name=f"[RagRetrievalAtom] Query: {query}",
         status="pending",
         indent_level=0,

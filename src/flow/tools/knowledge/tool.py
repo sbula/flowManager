@@ -1,6 +1,6 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from src.flow.tools.base import Tool, ToolContext, ToolError, ToolResult
+from flow.tools.base import Tool, ToolContext, ToolError, ToolResult
 
 
 def get_rag_client():
@@ -15,7 +15,7 @@ class RagClientStub:
     def get_related_tests(self, file_path: str) -> List[str]:
         return []
 
-    def generate_map(self, root_dir: str = None) -> Dict[str, Any]:
+    def generate_map(self, root_dir: Optional[str] = None) -> Dict[str, Any]:
         return {"services": [], "infrastructure": []}
 
     def get_task_context(self, task_id: str) -> Dict[str, Any]:

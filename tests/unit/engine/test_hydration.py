@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -79,7 +78,7 @@ def test_t1_06_explicit_registry_loading(valid_project):
     registry_path = valid_project / FLOW_DIR_NAME / "flow.registry.json"
     # Use real class to pass integrity check
     registry_path.write_text(
-        '{"git": "flow.engine.atoms.ManualInterventionAtom"}', encoding="utf-8"
+        '{"git": "flow.atoms.ManualInterventionAtom"}', encoding="utf-8"
     )
 
     os.chdir(valid_project)
@@ -87,7 +86,7 @@ def test_t1_06_explicit_registry_loading(valid_project):
     engine.hydrate()
 
     assert "git" in engine.registry_map
-    assert engine.registry_map["git"] == "flow.engine.atoms.ManualInterventionAtom"
+    assert engine.registry_map["git"] == "flow.atoms.ManualInterventionAtom"
 
 
 def test_t1_17_registry_validation_failure(valid_project):

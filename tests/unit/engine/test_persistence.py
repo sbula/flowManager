@@ -1,7 +1,4 @@
-import os
 from unittest.mock import patch
-
-import pytest
 
 from flow.domain.models import StatusTree
 from flow.domain.persister import StatusPersister
@@ -54,9 +51,8 @@ def test_t4_04_av_file_lock_simulation(tmp_path):
     with patch(
         "os.replace", side_effect=[PermissionError("Locked"), None]
     ) as mock_rename:
-        # Also mock _update_hash because os.replace won't actually move the file
         with patch.object(persister, "_update_hash"):
-            try:
-                persister.save(state, filename="status.md")
-            except PermissionError:
-                pass
+            persister.save(state, filename="status.md")
+            
+            # Verify it retried once and then succeeded
+            assert mock_rename.call_count == 2

@@ -1,8 +1,8 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from src.flow.tools.base import ToolContext, ToolResult
+from src.flow.tools.base import ToolContext
 from src.flow.tools.knowledge import KnowledgeTool
 
 

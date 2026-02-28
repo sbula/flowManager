@@ -1,6 +1,6 @@
 import pytest
 
-from flow.domain.models import StateError, StatusTree, Task
+from flow.domain.models import StatusTree
 
 # T5.xx: Domain Policy (Auto-Propagation / Protocol V2)
 # Goal: Verify Auto-Activation and Auto-Completion.

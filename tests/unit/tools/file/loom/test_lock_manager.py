@@ -1,12 +1,11 @@
 import os
 import time
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from src.flow.tools.base import ToolError
-from src.flow.tools.file.loom.lock_manager import LockManager
+from flow.tools.base import ToolError
+from flow.tools.file.loom.lock_manager import LockManager
 
 
 @pytest.fixture

@@ -1,11 +1,10 @@
 import os
-import sys
 import unittest.mock
 
 import pytest
 
 from flow.engine.core import Engine
-from flow.engine.models import RegistryError, RootNotFoundError, SecurityError
+from flow.engine.models import RegistryError
 from flow.engine.security import SafePath
 
 
@@ -179,27 +178,7 @@ def test_t7_09_circular_dependency(valid_project):
     with pytest.raises(StatusParsingError, match="Cycle detected"):
         engine.load_status()
 
-    return  # Done
 
-    # Old assertions below relevant only if cycle detection was OFF
-
-    # Verify Tree Structure
-    tree = engine.load_status()
-    assert len(tree.root_tasks) > 0, "No root tasks found"
-    t = tree.root_tasks[0]
-    # Assert Attributes match
-    assert t.status == "active", f"Task {t.name} status is {t.status}, expected active"
-    assert t.name == "A", f"Task name is {t.name}"
-    assert t.ref == "b.md", f"Task ref is {t.ref}"
-
-    root_task = engine.find_active_task()
-    assert root_task is not None, "Root task not found via find_active_task"
-    assert root_task.name == "A"
-    assert root_task.ref == "b.md"
-
-    # If we implement a helper to "expand_ref", we would test it here.
-    # For now, asserting it parses the cycle definition without hanging is the test.
-    pass
 
 
 def test_t7_11_registry_schema_invalid(valid_project):
@@ -263,6 +242,4 @@ def test_t7_15_recursion_bomb(valid_project):
             pass
 
 
-def test_t7_16_dual_engine_contention(valid_project):
-    """T7.16 Dual Engine Contention (Covered by T7.01)."""
-    pass
+

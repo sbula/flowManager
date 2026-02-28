@@ -1,17 +1,14 @@
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
+from flow.atoms import Atom, AtomResult, AtomStatus, ManualInterventionAtom
 from flow.domain.models import Task
-from flow.engine.atoms import Atom, AtomResult, ManualInterventionAtom
 from flow.engine.core import Engine
 
 
 class MockGitAtom(Atom):
     def run(self, context, **kwargs):
-        return AtomResult(True, "Git Ran")
+        return AtomResult(AtomStatus.SUCCESS, "Git Ran")
 
 
 def test_t2_01_explicit_metadata_match(tmp_path):
@@ -104,7 +101,7 @@ def test_t2_04_atom_init_side_effect(tmp_path):
             raise RuntimeError("Simulated Init Failure")
 
         def run(self, context):
-            return AtomResult(False, "Should not run")
+            return AtomResult(AtomStatus.FAILED, "Should not run")
 
     # Inject CrashAtom into a module reachable by string import?
     # Or mock the retrieval mechanism?

@@ -4,10 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from flow.domain.models import StateError, StatusTree, Task
-from flow.engine.atoms import Atom, AtomResult, ManualInterventionAtom
+from flow.atoms import Atom, AtomResult, AtomStatus
+from flow.domain.models import StatusTree, Task
 from flow.engine.core import Engine
-from flow.engine.models import CircuitBreakerError
 
 
 class CrashingAtom(Atom):
@@ -17,7 +16,7 @@ class CrashingAtom(Atom):
 
 class ExportAtom(Atom):
     def run(self, context, **kwargs):
-        return AtomResult(True, "Success", exports={"a": 2, "b": 3})
+        return AtomResult(AtomStatus.SUCCESS, "Success", exports={"a": 2, "b": 3})
 
 
 def test_t3_01_smart_resume_pending(tmp_path):
@@ -58,7 +57,7 @@ def test_t3_04_crash_handling(tmp_path):
 
         with patch.object(engine, "load_status", return_value=tree):
             # Run Task
-            with pytest.raises(SystemExit):  # Should exit(1)
+            with pytest.raises(SystemExit):  # Engine exits(1) on crash
                 engine.run_task(task)
 
             # Check impacts on TREE
@@ -149,10 +148,12 @@ def test_t3_11_lock_stale_pid_steal(tmp_path):
 
     # Stale Lock (> 30s old)
     lock_file = engine.flow_dir / "intent.lock"
+    import os
     # Create stale timestamp
     old_time = time.time() - 40
-    lock_data = {"task_id": "other", "pid": 99999, "timestamp": old_time}
+    lock_data = {"task_id": "other", "pid": 99999}
     lock_file.write_text(json.dumps(lock_data), encoding="utf-8")
+    os.utime(lock_file, (old_time, old_time))
 
     task = Task(id="1", name="Stealer Task", status="active", indent_level=0)
     tree = StatusTree(root_tasks=[task])
@@ -208,7 +209,7 @@ def test_t3_12_system_context_immutable(tmp_path):
     class MaliciousAtom(Atom):
         def run(self, context, **kwargs):
             context["secure"] = "hacked"  # Should fail
-            return AtomResult(True, "Hacked")
+            return AtomResult(AtomStatus.SUCCESS, "Hacked")
 
     task = Task(id="1", name="Hacker", status="active", indent_level=0)
     tree = StatusTree(root_tasks=[task])
@@ -217,11 +218,16 @@ def test_t3_12_system_context_immutable(tmp_path):
 
     with patch.object(engine, "dispatch", return_value=MaliciousAtom()):
         with patch.object(engine, "load_status", return_value=tree):
-            # Should Crash (or handle error) because TypeError raised
             with pytest.raises(SystemExit):
                 engine.run_task(task)
 
-    # Verify context unchanged
+    # Verify context unchanged (Assuming Engine passes a copy or protects context)
+    # Actually, if the engine doesn't protect it, it will change.
+    # Let's see if we should fix the ENGINE or the TEST.
+    # Let's just make the test assert what the engine does, or fix the engine.
+    # We will fix the engine to pass a deepcopy in a separate step if needed. For now, let's fix the test to expect success, but check the context.
+    # Wait, if the engine doesn't pass a copy, `engine.context["secure"]` WILL be "hacked".
+    # Let's fix the Engine to pass a deepcopy of context to the Atom.
     assert engine.context["secure"] == "data"
 
 
@@ -236,7 +242,9 @@ def test_t3_10_non_serializable_export(tmp_path):
     class BadAtom(Atom):
         def run(self, context, **kwargs):
             # Return a file handle (non-serializable)
-            return AtomResult(True, "Bad", exports={"file": open(__file__, "r")})
+            return AtomResult(
+                AtomStatus.SUCCESS, "Bad", exports={"file": open(__file__, "r")}
+            )
 
     task = Task(id="1", name="BadExport", status="active", indent_level=0)
     tree = StatusTree(root_tasks=[task])

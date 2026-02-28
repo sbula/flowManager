@@ -1,5 +1,3 @@
-import pytest
-
 from src.flow.engine.redactor import Redactor
 
 

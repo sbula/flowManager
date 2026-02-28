@@ -1,7 +1,6 @@
 import pytest
 
 from flow.domain.models import StaleIDError, StateError, StatusTree, Task
-from flow.domain.parser import StatusParsingError
 
 
 # Helpers for construction

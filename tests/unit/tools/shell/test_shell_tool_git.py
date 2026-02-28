@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.flow.tools.base import ToolContext, ToolResult
+from src.flow.tools.base import ToolContext
 from src.flow.tools.shell import ShellTool
 
 

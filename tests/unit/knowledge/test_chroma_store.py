@@ -1,6 +1,3 @@
-import os
-import shutil
-
 import pytest
 
 from workflow_core.knowledge.store.chroma_store import ChromaStore

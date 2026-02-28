@@ -1,8 +1,4 @@
-import json
 import os
-from pathlib import Path
-
-import pytest
 
 from flow.domain.models import StatusTree, Task
 from flow.domain.persister import StatusPersister
@@ -50,11 +46,4 @@ def test_integration_persistence_wiring(valid_project):
     assert loaded_tree.root_tasks[0].name == "Integration Test Task"
 
 
-def test_integration_atomic_rename_logic(valid_project, monkeypatch):
-    """
-    Verifies the Atomic Rename logic (Stub behavior ported to Domain).
-    We can't easily mock syscalls, but we can verify the .tmp pattern if we interrupt?
-    Actually, let's just trust the unit test for Domain Persister for that.
-    This test focuses on the Integration.
-    """
-    pass
+
