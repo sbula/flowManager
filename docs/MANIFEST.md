@@ -24,9 +24,13 @@
 *   `01_02_status_domain_spec.md`: The "Database" (Status Tree) behavior.
 *   `01_03_engine_core_spec.md`: The Runtime (Engine, Flows) behavior.
 *   `01_04_tooling_spec.md`: The Tool interfaces and Security.
-*   `01_05_llm_binding_spec.md`: The Raw LLM Interface (Models, Tokenizers).
-*   `01_06_rag_spec.md`: The Knowledge System (RAG, Indexing).
+*   `01_05_atoms_spec.md`: The Atoms (Unit of Work) specification.
+*   `01_06_llm_binding_spec.md`: The Raw LLM Interface (Models, Tokenizers, Provider Abstraction).
+*   `01_07_skills_spec.md`: The Skills system specification.
+*   `01_08_flows_spec.md`: The Flows (DAG Orchestration) specification.
+*   `01_09_rag_spec.md`: The Knowledge System (RAG, Indexing).
 *   `01_10_agent_orchestration_spec.md`: How agents and personas interact.
+*   `01_11_validation_gate_spec.md`: The Validation Gate (Anti-Hallucination Firewall).
 
 ### `docs/architecture/` (The Map)
 **Content**: High-level design patterns, data flow diagrams, and architectural decisions.
