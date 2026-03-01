@@ -28,7 +28,6 @@ classDiagram
         +create(profile_name: str) LLMProvider
         +reset(profile_name: str) void
         +reset_all() void
-        +close(profile_name: str) void
         +close_all() void
         -_load_provider(name: str) Module
         -_cache: Dict~str, LLMProvider~
@@ -88,10 +87,27 @@ class LLMProvider(ABC):
       1. Factory instantiates the adapter via __init__() (no args).
       2. Factory calls configure(config) exactly ONCE.
       3. After configure() succeeds, generate()/embed()/count_tokens() are callable.
-      4. Calling generate()/embed() BEFORE configure() MUST raise ProviderNotConfiguredError.
+      4. Calling generate()/embed()/count_tokens() BEFORE configure() MUST raise 
+         ProviderNotConfiguredError. Even local tokenizers (e.g. tiktoken) require
+         configure() to resolve which model's tokenizer to load.
       5. Calling configure() a SECOND time MUST raise ProviderAlreadyConfiguredError.
+         This includes cases where the first configure() FAILED (e.g., LLMAuthError).
+         A failed configure() poisons the adapter. The caller MUST discard it and
+         obtain a fresh instance via Factory.reset() + Factory.create().
+      5a. Resource Cleanup on configure() Failure: If configure() raises an exception
+          after partially initializing SDK resources (e.g., HTTP pool created but
+          credential validation failed), the adapter MUST clean up those resources
+          in its exception handler before re-raising. The adapter MUST also tolerate
+          close() being called on a partially-configured (poisoned) instance —
+          close() MUST release any partially-initialized SDK resources rather than
+          silently no-opping.
       6. close() MAY be called to release SDK resources (HTTP pools, background threads).
-         After close(), calling generate()/embed() MUST raise ProviderNotConfiguredError.
+         After close(), calling generate()/embed()/count_tokens() MUST raise 
+         ProviderNotConfiguredError.
+      7. close() is PERMANENT. After close(), the adapter is dead. Calling configure()
+         again MUST raise ProviderAlreadyConfiguredError. To obtain a new instance,
+         use Factory.reset(profile_name) followed by Factory.create(profile_name).
+      8. close() MUST be idempotent. Calling it multiple times MUST NOT raise.
     
     Thread Safety:
       All implementations MUST be thread-safe. Concurrent calls to generate()
@@ -159,6 +175,13 @@ class LLMProvider(ABC):
                           (raise ValueError if missing or wrong type).
                         - role MUST be one of: "system", "user", "assistant"
                           (raise ValueError for unknown roles).
+                        - content SHOULD NOT be an empty string. Adapters SHOULD
+                          raise ValueError for empty-string content as a defensive
+                          measure, since most providers reject it. This is a
+                          RECOMMENDED validation, not a hard requirement.
+                        - content SHOULD NOT contain null bytes (\x00). Adapters
+                          SHOULD strip or reject null bytes as a defensive measure.
+                          This is a RECOMMENDED validation, not a hard requirement.
                       
                       V1 roles: "system", "user", "assistant".
                       [FUTURE V2]: When function-calling is added, "tool" and 
@@ -182,8 +205,17 @@ class LLMProvider(ABC):
         
         Returns:
             The generated text string. NEVER returns None, empty string, or 
-            whitespace-only string. If the raw model response is empty or 
-            whitespace-only, raise LLMGenerationError.
+            whitespace-only string. If the raw SDK response object is None,
+            the response text attribute is None, or the response text is empty /
+            whitespace-only, raise LLMGenerationError. Adapters MUST guard
+            against None from the SDK (common with safety-filtered responses
+            where e.g. Gemini's response.text is None rather than "").
+        
+        Kwargs Pass-Through:
+            Unknown **kwargs (not in the standardized list above) SHOULD be
+            silently passed through to the underlying provider SDK. This allows
+            callers to use provider-specific features without adapter changes.
+            Adapters MUST NOT raise on unknown kwargs.
         
         Raises:
             ProviderNotConfiguredError: If configure() has not been called.
@@ -192,8 +224,9 @@ class LLMProvider(ABC):
             LLMAuthError:              Invalid/expired credentials (NOT retryable).
             LLMRateLimitError:         Quota exhaustion (retryable with backoff).
             LLMGenerationError:        Model error, safety filter, empty response,
-                                       or context window overflow. Context overflow
-                                       is non-retryable (see §6.3).
+                                       None SDK response, or context window
+                                       overflow. Context overflow is non-retryable
+                                       (see §6.3).
             ProviderConfigError:       Model not found / deprecated at provider 
                                        (discovered at runtime, NOT retryable).
             TimeoutError:              If timeout_seconds is exceeded.
@@ -316,6 +349,9 @@ class LLMProvider(ABC):
 ### 4.1 Auth Method Enum
 
 The `auth.method` field in a profile selects the credential resolution strategy.
+
+> [!NOTE]
+> If a profile has **no `auth` block**, the adapter MUST log a `WARNING` with `"No auth method specified, defaulting to 'api_key'"` and default to `method: api_key` using the provider's conventional environment variable (e.g., `OPENAI_API_KEY` for OpenAI). This default behavior is a convenience for simple setups — production configurations SHOULD always declare `auth` explicitly.
 
 | Method | Scope | Provider(s) | Description | V1? |
 |:---|:---|:---|:---|:---|
@@ -465,6 +501,17 @@ During `configure()`, adapters resolve credentials using a **layered chain**. Th
 │      'flow secret set ANTHROPIC_API_KEY', or configure       │
 │      auth.method=keyring in the profile."                    │
 └─────────────────────────────────────────────────────────────┘
+
+> [!CAUTION]
+> **Credential Sanitization**: The extracted API key MUST be aggressively sanitized. Adapters MUST strip the following characters before passing to the SDK:
+> - Leading/trailing whitespace (spaces, tabs `\t`)
+> - Newlines (`\n`, `\r`, `\r\n`)
+> - Byte Order Marks (`\xEF\xBB\xBF`, `\uFEFF`)
+> - Zero-Width Spaces (`\u200B`)
+> - Non-Breaking Spaces (`\u00A0`)
+> - Em Spaces (`\u2003`)
+>
+> DAUs frequently copy unprintable characters from Outlook, Slack, Teams, and web browsers into config fields or environment variables. Windows Notepad in particular adds BOM and CRLF.
 ```
 
 **Important**: For `method=adc`, layers 1 and 2 are skipped entirely — the Google SDK handles credential discovery internally via its own chain (env var → `gcloud` CLI tokens → compute metadata). The adapter simply calls `genai.Client()` with no arguments.
@@ -562,26 +609,32 @@ When `method=keyring`, the resolution chain is:
 2.  **OS keyring** lookup.
 3.  **Fail fast** with message: `"API key not found in keyring. Run 'flow secret set <KEY_NAME>' to store it."`
 
+> [!WARNING]
+> **Headless Timeout**: The `keyring.get_password()` call MUST be wrapped in a strict 3-second timeout (e.g., via background thread or async wrapper). In headless Linux/macOS environments, locked keyrings wait indefinitely for GUI user prompts. If it times out, raise `LLMAuthError("OS Keyring locked or unresponsive in headless environment")`.
+
 This means CI/CD environments (where env vars are set by the pipeline) work seamlessly without touching the keyring, while developer workstations use the keyring for convenience.
 
 ### 4.7 Credential Security Constraints
 
 *   **No Disk Persistence**: Resolved API keys MUST be held in memory only. They MUST NOT be written to `.flow/`, logs, `audit.jsonl`, or `AtomResult.exports`.
 *   **No Logging**: API keys MUST NOT appear in any log output. The `SmartRedactor` (01_04 §7) provides a safety net, but adapters MUST NOT emit keys in the first place.
+*   **No Exception Leakage**: API keys MUST NOT appear in exception messages, `str(exception)`, or `exception.args`. When `configure()` or credential resolution fails, the error message MUST describe the *problem* (e.g., "API key not found") without including the *credential value*. This is **explicitly forbidden** — violations are treated as security bugs.
 *   **Key Rotation**: Singleton cache invalidation (§5.2) provides the mechanism. If a key is rotated, the operator runs `flow secret set <KEY>` (keyring) or updates the env var, then calls `flow reset-llm` (or restarts the engine) to force re-resolution.
 *   **Keyring Dependency**: The `keyring` package is an **optional** dependency. If it is not installed and `method=keyring` is configured, `configure()` MUST raise `MissingDependencyError` with: `"Run 'pip install keyring' to use OS keyring authentication."` If not installed and method is `api_key`, the keyring fallback is silently skipped — env var is the only source.
 
 ### 4.8 Capability Matrix (Not All Providers Support Everything)
 
-| Provider | `generate()` | `embed()` | `count_tokens()` | Function-Calling (V2) |
-|:---|:---|:---|:---|:---|
-| Gemini | ✅ | ✅ | ✅ (native) | ✅ (V2) |
-| OpenAI | ✅ | ✅ | ✅ (tiktoken) | ✅ (V2) |
-| Anthropic | ✅ | ❌ `NotImplementedError` | ⚠️ approximation | ✅ (V2) |
-| Ollama | ✅ | ✅ | ⚠️ approximation | ❌ |
-| Azure OpenAI | ✅ | ✅ | ✅ (tiktoken) | ✅ (V2) |
+| Provider | `generate()` | `embed()` | `embed_dims` | `count_tokens()` | Function-Calling (V2) |
+|:---|:---|:---|:---|:---|:---|
+| Gemini | ✅ | ✅ | 768 | ✅ (native) | ✅ (V2) |
+| OpenAI | ✅ | ✅ | 1536 / 3072 | ✅ (tiktoken) | ✅ (V2) |
+| Anthropic | ✅ | ❌ `NotImplementedError` | N/A | ⚠️ approximation | ✅ (V2) |
+| Ollama | ✅ | ✅ | model-dependent | ⚠️ approximation | ❌ |
+| Azure OpenAI | ✅ | ✅ | 1536 / 3072 | ✅ (tiktoken) | ✅ (V2) |
 
 Callers MUST handle `NotImplementedError` from `embed()` gracefully. The RAG system (01_09) MUST use a profile with embedding support and SHOULD validate this at startup.
+
+**Embedding Dimensions**: Adapters that support `embed()` SHOULD expose their embedding dimensions via a `embedding_dimensions` property (returning `Optional[int]`). This allows the RAG system to validate dimension compatibility at startup rather than discovering mismatches at vector insertion time. If the adapter cannot determine dimensions statically, it SHOULD return `None` and let the caller infer from the first result.
 
 ---
 
@@ -603,14 +656,16 @@ The Factory is the **only** way to obtain an LLM instance.
 
 *   **Caching**: Provider instances are **Singletons per profile name**. `create("coding_expert")` always returns the same adapter instance for the lifetime of the Engine process.
 *   **Invalidation**:
-    *   `reset(profile_name: str)`: Calls `adapter.close()` on the evicted instance, then evicts it from the cache. Next `create()` will re-instantiate and re-configure.
+    *   `reset(profile_name: str)`: Calls `adapter.close()` on the evicted instance, then evicts it from the cache. Next `create()` will re-instantiate and re-configure. If `profile_name` has never been created (not in cache), `reset()` is a **silent no-op** — it MUST NOT raise.
     *   `reset_all()`: Calls `close()` on all cached instances, then clears the cache.
 *   **When to use `reset()`**: Credential rotation (API key changed), configuration changes (switching models), or recovering from a provider that is persistently failing. It is NOT for cancelling in-flight API calls — those are governed by `timeout_seconds`.
 
 > [!CAUTION]
 > `reset()` and `reset_all()` are NOT safe during active workflow execution. They are intended for operator-initiated reconfiguration **between** workflow runs (e.g., via `flow reset-llm` CLI or before Engine restart). Calling `reset()` while parallel fan-out branches are using the adapter results in undefined behavior.
+>
+> **Distinction from `close_all()`**: `close_all()` IS safe during active execution because it is a **shutdown** path — the entire Engine is going down, so in-flight requests are abandoned. `reset()` is **unsafe** because it is a **reconfiguration** path during the Engine's life — callers may still hold references to the evicted adapter and attempt to use it. If `reset()` is called during active calls, the recommended behavior is that the evicted adapter's `close()` sets an internal `_closed` flag, causing in-flight operations to raise `ProviderNotConfiguredError`.
 
-*   **Graceful Shutdown**: `close_all()` calls `adapter.close()` on every cached instance without evicting them. Called by the Engine during `SIGTERM` / `SIGINT` teardown to release network resources.
+*   **Graceful Shutdown**: `close_all()` calls `adapter.close()` on every cached instance and marks the Factory as **shut down**. Called by the Engine during `SIGTERM` / `SIGINT` teardown to release network resources. **CRITICAL: The teardown loop MUST wrap `close()` in an absolute hard-timeout (e.g., 5 seconds) to prevent frozen TCP sockets from creating infinite zombie processes blocking `SIGTERM`.** After `close_all()`, calling `create()` MUST raise `FactoryClosedError` to prevent returning dead (closed) adapter instances. To resume operations, the Engine must instantiate a new Factory.
 *   **Config Changes**: Changes to `flow_config.json` at runtime are NOT automatically detected. A `reset()` or engine restart is required. This is acceptable for V1.
 
 ### 5.3 Provider Registry
@@ -653,7 +708,7 @@ Each provider MUST be installable as an independent Poetry extras group:
 
 ### 6.2 Error Standardization
 Providers must catch SDK-specific errors and raise standard system exceptions:
-*   `LLMConnectionError`: Network/API reachability issues.
+*   `LLMConnectionError`: Network/API reachability issues. **Adapters MUST explicitly catch and map `[SSL: CERTIFICATE_VERIFY_FAILED]` (Corporate Proxy Mitigations) and HTTP 502/504 `json.decoder.JSONDecodeError` (Cloudflare generic HTML pages) to `LLMConnectionError`. Do NOT leak standard library tracebacks.**
 *   `LLMAuthError`: Invalid API keys, expired credentials, permission denied.
 *   `LLMRateLimitError`: Quota exhaustion (HTTP 429).
 *   `LLMGenerationError`: Internal model errors, safety filter blocks, empty responses, context window overflow.
@@ -667,16 +722,19 @@ Providers must catch SDK-specific errors and raise standard system exceptions:
 
 Retry logic is implemented as **Tenacity decorators on the adapter's `generate()` and `embed()` methods**, NOT in the Factory (which is a routing concern, not a resilience concern).
 
-| Error Type | Retryable? | Strategy | Max Attempts |
-|:---|:---|:---|:---|
-| `LLMConnectionError` | ✅ Yes | Exponential backoff (1s, 2s, 4s) | 3 |
-| `LLMRateLimitError` | ✅ Yes | Provider-specific retry header if available (see §6.3.1), else exponential backoff (5s, 15s, 30s) | 3 |
-| `LLMAuthError` | ❌ No | Fail immediately | 1 |
-| `LLMGenerationError` | ⚠️ Conditional | Single retry for model hiccups. Context window overflow errors are **non-retryable** — adapters SHOULD detect this from provider error messages and skip retry. | 2 (or 1 for overflow) |
-| `ProviderConfigError` | ❌ No | Fail immediately (model not found) | 1 |
-| `TimeoutError` | ✅ Yes | Retry with same timeout | 2 |
+| Error Type | Retryable? | Strategy | Max Retries (additional attempts after first failure) | Total Calls |
+|:---|:---|:---|:---|:---|
+| `LLMConnectionError` | ✅ Yes | Exponential backoff (1s, 2s, 4s) | 3 | 4 |
+| `LLMRateLimitError` | ✅ Yes | Provider-specific retry header if available (see §6.3.1), else exponential backoff (5s, 15s, 30s) | 3 | 4 |
+| `LLMAuthError` | ❌ No | Fail immediately | 0 | 1 |
+| `LLMGenerationError` | ⚠️ Conditional | Single retry for model hiccups. Context window overflow errors are **non-retryable** — adapters SHOULD detect this from provider error messages and skip retry. | 1 (0 for overflow) | 2 (1 for overflow) |
+| `ProviderConfigError` | ❌ No | Fail immediately (model not found) | 0 | 1 |
+| `TimeoutError` | ✅ Yes | Retry with same timeout | 1 | 2 |
 
 **Retry Budget**: Adapters MUST log every retry attempt at `WARNING` level. After final failure, the original exception is re-raised.
+
+> [!NOTE]
+> **Total Wall-Clock Bound**: When retries are enabled, the total wall-clock time for a single `generate()` call is approximately `(Total Calls × timeout_seconds) + cumulative backoff`. For example, a `LLMConnectionError` with `timeout_seconds=120` and 3 retries results in: `4 × 120s + (1+2+4)s backoff = ~487s` (~8 minutes). Callers must account for this when setting Engine-level step timeouts. There is no circuit-breaker at the adapter level — the Engine's `SIGTERM` handler and atom-level timeout are the ultimate safeguards.
 
 #### 6.3.1 Rate Limit Header Parsing
 
@@ -691,7 +749,7 @@ If no retry hint is available from the provider, fall back to exponential backof
 
 *   Both `generate()` and `embed()` accept a `timeout_seconds` keyword argument.
 *   Default: `120s` for `generate()`, `60s` for `embed()`.
-*   Adapters MUST enforce the timeout. If the SDK supports a native `timeout` parameter, use it. Otherwise, wrap the blocking call using `concurrent.futures.ThreadPoolExecutor` with a deadline.
+*   Adapters MUST enforce the timeout. If the SDK supports a native `timeout` parameter, use it. Otherwise, wrap the blocking call using `concurrent.futures.ThreadPoolExecutor` with a strict `max_workers` cap (e.g., matching the Engine's global concurrent limits). **Do NOT use unbounded ThreadPools, as large parallel fan-outs will trigger OS-level `RuntimeError: can't start new thread` or exhaust file descriptors.**
 *   On timeout, raise `TimeoutError` — which is retryable per §6.3.
 
 ### 6.5 Observability & Logging
