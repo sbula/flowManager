@@ -44,6 +44,3 @@ def test_integration_persistence_wiring(valid_project):
     loaded_tree = engine.load_status()
     assert len(loaded_tree.root_tasks) == 1
     assert loaded_tree.root_tasks[0].name == "Integration Test Task"
-
-
-

@@ -116,3 +116,260 @@ A RAG architecture must be continuously measured against objective metrics, ensu
 ## 6. Recommended Technology Stack Alignments
 *   **Vector Database**: **Qdrant**. Native to Rust (aligns with Phase 2 V-Next runtime migration strategy), highly optimized for memory footprint, and excels at the complex metadata filtering required for the Zero-Trust Multi-Tenant RAG architecture.
 *   **Embedding Strategy**: Utilize Matryoshka models (e.g., `text-embedding-3`). Truncating high-dimension vectors locally for lower-latency preliminary matching reduces compute waste before refining.
+
+---
+
+## 7. Hierarchical Hashing (L1/L2/L3 Drift Detection)
+
+> **Status**: PROPOSED — See [01_11_validation_gate_spec.md](../specs/01_11_validation_gate_spec.md).
+
+### 7.1 The Problem with Flat File Hashing
+The current `rag_manifest.json` uses a single `SHA256(file_content)` hash per file. This means:
+*   A **private variable rename** inside a function body triggers a full re-embed of that file's chunks — even though no public API changed.
+*   A **signature change** (parameter added) and a **whitespace formatting change** are treated identically.
+
+### 7.2 Three-Level Hash Strategy
+To distinguish the *type* of change, each symbol in the index should carry three hashes:
+
+| Level | What's Hashed | Content | RAG Impact on Change |
+|:---|:---|:---|:---|
+| **L1: Implementation** | Method/function body | Local variables, control flow, string literals | None — no RAG update, but may trigger test re-run |
+| **L2: Signature** | Normalized signature | Name + parameter names/types + return type + visibility | RAG entry invalidated; consumers alerted |
+| **L3: Contract** | Public interface surface | Proto files, OpenAPI spec, exported class interfaces | Breaking change notification; full downstream audit |
+
+### 7.3 Benefits
+1.  **Prevents Over-Indexing**: Only L2/L3 changes trigger re-embedding, reducing RAG update volume by an estimated 60-80%.
+2.  **Enables Precise Drift Detection**: The Validation Gate (01_11) can distinguish "this is a harmless refactoring" from "this breaks the API contract."
+3.  **Supports Git-Committed Index**: Since L2/L3 hashes change infrequently, the `.machine-doc/` directory generates minimal diffs on most commits.
+
+### 7.4 Implementation Notes
+*   **Normalization**: Before hashing, signatures must be normalized (stripped of comments, whitespace, and formatting) to produce stable hashes across style changes.
+*   **Language-Specific**: The hash extraction logic is language-dependent. Python uses `ast.parse()` (Phase 1) or Tree-sitter (Phase 3). Other languages deferred.
+
+---
+
+## 8. Cross-Service Symbol Linking
+
+### 8.1 The Multi-Service Problem
+When Flow Manager orchestrates agents across a polyglot microservice landscape, the RAG must understand inter-service relationships. An agent working on Service A must know that `OrderService.place()` is a gRPC call to Service B, not a local function.
+
+### 8.2 Global Symbol Registry
+Each microservice maintains its own `.machine-doc/` directory with local symbols. A **Global Registry** aggregates these into a unified cross-service index.
+
+```
+.flow/
+  global_registry/
+    service_a.symbols.json
+    service_b.symbols.json
+    cross_service_edges.json    # gRPC, Kafka, REST links
+```
+
+### 8.3 Relation Types for Cross-Service Edges
+
+| Relation | Transport | Example |
+|:---|:---|:---|
+| `calls_grpc` | gRPC | ServiceA → `OrderService.place` (ServiceB) |
+| `publishes_kafka` | Kafka | ServiceA → `order.created` topic |
+| `subscribes_kafka` | Kafka | ServiceC ← `order.created` topic |
+| `calls_rest` | HTTP | ServiceA → `GET /api/users` (ServiceB) |
+| `implements_proto` | Proto | ServiceB.OrderService implements `order.proto` |
+
+### 8.4 Ghost Signatures
+When a public symbol is deleted from a service, it should be kept as a **Ghost** entry in the registry for a configurable retention period (default: 30 days or 10 commits). This allows:
+*   Agents to discover: "This method was deleted in commit `abc123`; the recommended replacement is `newMethod()`."
+*   Downstream consumer alerts without silent failures.
+
+---
+
+## 9. Integration with Validation Gate (01_11)
+
+### 9.1 Shared Infrastructure
+The RAG system and the Validation Gate share the **Symbol Index** (`.machine-doc/`). They differ in purpose:
+*   **RAG**: Uses the index for *retrieval* — finding relevant code to inject into agent context.
+*   **Gate**: Uses the index for *validation* — checking that agent output references real, accessible symbols.
+
+### 9.2 Write-Then-Index Loop
+```
+Agent generates code
+  → Validation Gate checks code against index → PASS/FAIL
+  → If PASS: LoomAtom writes the file
+  → SymbolExtractor re-parses the written file
+  → IndexManager updates .machine-doc/ atomically
+  → RAG re-embeds only if L2/L3 hashes changed
+```
+
+### 9.3 Cold Start Protocol
+If `.machine-doc/` does not exist (fresh project, first clone):
+1.  `flow index --full` scans the entire codebase using Tree-sitter.
+2.  Generates the complete symbol index.
+3.  The Validation Gate enters `warn` mode (logs violations but does not reject) until the index stabilizes.
+4.  After first full index, subsequent updates are incremental.
+
+---
+
+## 10. Enhanced Synchronization Strategy
+
+### 10.1 Content-Addressable Identity for Renames
+The current `rag_manifest.json` keyed by `file_path` breaks on renames — the old path gets orphaned, the new path gets re-embedded, creating duplicates.
+
+**Solution**: Use a content-addressable identity derived from the AST:
+*   **Symbol ID**: `hash(fully_qualified_name + normalized_signature)`
+*   On rename: if the symbol ID matches, update the `file_path` metadata without re-embedding.
+*   Only if the symbol's *content* changes should it be re-embedded.
+
+### 10.2 Manifest Schema Versioning
+To prevent silent corruption when upgrading the manifest format:
+```json
+{
+  "schema_version": "0.2",
+  "generated_at": "2026-03-01T12:00:00Z",
+  "files": { ... }
+}
+```
+If `schema_version` does not match the expected version, `flow index` should prompt for a full rebuild rather than attempting to incrementally update an incompatible manifest.
+
+### 10.3 Branch-Aware Indexing
+When switching git branches, the delta between the current index and the branch target should be computed via `git diff`:
+1.  `git diff --name-status main..feature-branch` → list of changed files.
+2.  Only re-parse and re-embed changed files.
+3.  Delete index entries for removed files.
+
+---
+
+## 11. Context Budget Management
+
+### 11.1 The Token Explosion Problem
+In large codebases with many relevant symbols, RAG retrieval can overwhelm the agent's context window, reducing reasoning quality.
+
+### 11.2 Retrieval Budget Configuration
+```json
+{
+  "knowledge": {
+    "max_retrieval_chunks": 10,
+    "max_retrieval_tokens": 4096,
+    "max_symbols_per_request": 20,
+    "retrieval_radius": "module"
+  }
+}
+```
+
+### 11.3 Budget Enforcement Strategies
+*   **Top-K Hard Cap**: Never return more than `max_retrieval_chunks` results regardless of relevance.
+*   **Retrieval Radius**: Limit search to the current module (`module`), package (`package`), or entire project (`project`).
+*   **Summary Fallback**: If the raw code exceeds `max_retrieval_tokens`, replace with the L2 (signature) summary instead of the full L1 (implementation) body.
+
+---
+
+## 12. Deterministic Feature Vectors (No-LLM Option)
+
+### 12.1 Concept
+For environments where LLM-based embedding is too slow, expensive, or non-deterministic, Flow Manager should support a **deterministic feature vector** mode:
+
+*   **Fixed 256-dimension vector** derived purely from structural AST properties.
+*   No LLM calls required.
+*   Same code always produces the same vector.
+
+### 12.2 Vector Composition
+
+| Segment | Dims | Content |
+|:---|:---|:---|
+| Symmetry Bits | 32 | One-hot encoding: language, visibility, side_effects, transport, is_async |
+| Identity Hash | 64 | Reduced hash of fully qualified name |
+| Structural Fingerprint | 160 | Hashed parameter types, return types, exception types, decorator presence |
+
+### 12.3 Trade-offs
+*   **Pro**: Deterministic, fast, no API cost, reproducible across environments.
+*   **Con**: No semantic understanding — cannot find "similar intent" functions, only structurally similar ones.
+*   **Recommendation**: Use as a **secondary** vector alongside LLM-generated semantic vectors. Enable "Dual-Track" search: semantic for intent matching, deterministic for structural matching.
+
+---
+
+## 13. Tiered RAG Access Rights
+
+### 13.1 Problem: "God-Object" Agents
+When an agent has full access to every service's internals, it writes code that bypasses API contracts and reaches directly into implementation details of other services. This creates tight coupling and violates microservice boundaries.
+
+### 13.2 Access Tier Model
+Every RAG query must include an `agent_scope` parameter. The `KnowledgeService` filters results based on the agent's tier:
+
+| Tier | Scope | Sees | Does NOT See |
+|:---|:---|:---|:---|
+| **Internal** | Own microservice (local) | Full AST: public, protected, private symbols + DB schema + call graph | — |
+| **Contract** | Other microservice (remote) | Public API only: `.proto`, OpenAPI, Kafka schemas, external entrypoints | Private methods, internal classes, DB schema, implementation logic |
+| **Architectural** | System-wide consulting | Service topology, event schemas, data flow direction | Any code, any implementation details |
+
+### 13.3 Implementation
+*   All symbols in `.machine-doc/symbols.json` carry a `visibility` field and a `namespace` (owning service).
+*   All RAG retrieval calls include `agent_scope: { service: "order-engine", tier: "internal" }`.
+*   The `KnowledgeService` applies metadata filters before returning results.
+*   Cross-service edges (gRPC, Kafka, REST) are always visible regardless of tier — they represent the *contract*, not the implementation.
+
+### 13.4 Benefits
+*   Enforces contract-driven development at the agent level.
+*   Reduces context window usage by filtering irrelevant symbols.
+*   Prevents agents from creating "distributed monolith" patterns where services leak internal details.
+
+---
+
+## 14. Symbol Contract Versioning (SemVer-Like)
+
+### 14.1 Problem: Change Impact Ambiguity
+When a symbol changes, the current L1/L2/L3 hash system (§7) detects *that* something changed, but not *how significant* the change is for downstream consumers.
+
+### 14.2 Automatic Version Increment
+Add a `symbol_version` field to the symbol schema. It auto-increments based on hash level:
+
+| Hash Level Changed | Version Bump | Example |
+|:---|:---|:---|
+| L1 (Implementation only) | Patch (`x.x.+1`) | `1.0.2` → `1.0.3` |
+| L2 (Signature change) | Minor (`x.+1.0`) | `1.0.3` → `1.1.0` |
+| L3 (Contract/Interface) | Major (`+1.0.0`) | `1.1.0` → `2.0.0` |
+
+### 14.3 Side-by-Side Versioning
+When a symbol's major version changes, the old version is retained as a **ghost entry** (see §8.4) alongside the new version:
+
+```json
+{
+  "symbol_id": "OrderService.place_v2",
+  "version": "2.0.0",
+  "status": "active",
+  "replaces": "OrderService.place_v1",
+  "consumers_on_old_version": ["RiskService", "Logger"]
+}
+```
+
+### 14.4 Agent Behavior
+*   When an agent queries the RAG, it receives only `"active"` versions by default.
+*   If legacy code still references the old version, the Validation Gate flags a "Deprecated Symbol" warning.
+
+---
+
+## 15. Shadow Indexer (Drift Detection for Manual Edits)
+
+### 15.1 Problem: Code Modified Outside Tool Pipeline
+If a developer modifies code without using FM's file tools (e.g., direct IDE editing), the `.machine-doc/` index silently diverges from reality. This causes the Validation Gate to validate against stale symbol data — the worst kind of false sense of security.
+
+### 15.2 `flow index --verify` Command
+A lightweight command that:
+1. Computes current file hashes for all tracked files.
+2. Compares against `file_hashes.json` in `.machine-doc/`.
+3. Reports files that have drifted without triggering a full re-index.
+
+```
+$ flow index --verify
+⚠️  3 files have changed outside the tool pipeline:
+  - src/flow/domain/parser.py (L2 hash mismatch — signature changed)
+  - src/flow/engine/core.py (L1 hash mismatch — implementation only)
+  - src/flow/tools/file_tool.py (L1 hash mismatch — implementation only)
+
+Run `flow index --update` to reconcile.
+```
+
+### 15.3 Integration Points
+*   **Git pre-commit hook**: Run `flow index --verify` before every commit. Warn (or block) if drift is detected.
+*   **CI/CD gate**: Reject PRs where the committed `.machine-doc/` doesn't match the code.
+*   **Periodic background**: In daemon mode (Phase 3+), run every N minutes.
+
+### 15.4 Non-Goal
+The shadow indexer does NOT re-index automatically. It only *detects* drift. The developer or agent must explicitly run `flow index --update` to reconcile. This prevents unexpected index changes during active agent work.
+

@@ -23,21 +23,25 @@ class ScriptAtom(Atom):
     def _parse_config(self, config: Dict[str, Any]) -> ScriptAtomConfig:
         return ScriptAtomConfig(**config)
 
-    def run(self, context: Dict[str, Any]) -> AtomResult:
+    def _get_command(self) -> str | None:
         import sys
         from typing import cast
 
         config = cast(ScriptAtomConfig, self.config)
         script = getattr(config, "script", None)
-
-        # Determine the command to execute
         if config.command:
-            command_to_execute = config.command
-        elif script:
-            # If a script is provided, assume it's a Python script for now
-            # This part might need further refinement based on actual use case (e.g., shebang, file extension)
-            command_to_execute = f'python -c "{script}"'
-        else:
+            return config.command
+        if script:
+            return f'python -c "{script}"'
+        return None
+
+    def run(self, context: Dict[str, Any]) -> AtomResult:
+        import sys
+
+        config = self.config
+
+        command_to_execute = self._get_command()
+        if not command_to_execute:
             return AtomResult(
                 AtomStatus.FAILED, "Missing 'command' or 'script' in config"
             )
@@ -68,23 +72,19 @@ class ScriptAtom(Atom):
         try:
             with open(stdout_path, "wb") as f_out, open(stderr_path, "wb") as f_err:
                 process = subprocess.Popen(
-                    command_to_execute, cwd=cwd, stdout=f_out, stderr=f_err, shell=True
+                    command_to_execute,
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    shell=True,
                 )
 
                 if sys.platform == "win32":
                     import ctypes
 
                     try:
-                        # Type ignore because _handle is private and mypy doesn't know it exists
                         proc_handle = int(process._handle)  # type: ignore
-
-                        # Check if process is already in a job
-                        is_in_job = ctypes.c_int(0)
-                        # This part of the original instruction was incomplete.
-                        # Assuming the intent was to assign the process to the job object if not already in one.
-                        # The original code had `job.assign_process(int(process._handle))`.
-                        # Re-integrating that with the new `proc_handle` variable.
-                        if job:  # Ensure job object was created
+                        if job:
                             job.assign_process(proc_handle)
                     except Exception as e:
                         process.kill()
@@ -93,6 +93,44 @@ class ScriptAtom(Atom):
                             f"Failed to attach process to Windows Job Object: {e}",
                         )
 
+                # Read streams with limits (T7.09 Firehose Defense)
+                MAX_STREAM_SIZE = 10 * 1024 * 1024  # 10 MB
+                import select
+                import time
+
+                start_time = time.time()
+                totals = [0, 0]  # total_out, total_err
+
+                # Manual poll loop since select.select doesn't work well on Windows pipes
+                import threading
+
+                t_out = threading.Thread(
+                    target=self._read_stream,
+                    args=(
+                        process.stdout,
+                        f_out,
+                        False,
+                        process,
+                        totals,
+                        MAX_STREAM_SIZE,
+                    ),
+                )
+                t_out.daemon = True
+                t_err = threading.Thread(
+                    target=self._read_stream,
+                    args=(
+                        process.stderr,
+                        f_err,
+                        True,
+                        process,
+                        totals,
+                        MAX_STREAM_SIZE,
+                    ),
+                )
+                t_err.daemon = True
+                t_out.start()
+                t_err.start()
+
                 try:
                     process.wait(timeout=config.timeout)
                 except subprocess.TimeoutExpired:
@@ -100,6 +138,14 @@ class ScriptAtom(Atom):
                     return AtomResult(
                         status=AtomStatus.FAILED,
                         message=f"Script execution timed out after {config.timeout}s",
+                    )
+
+                t_out.join(timeout=1.0)
+                t_err.join(timeout=1.0)
+
+                if totals[0] > MAX_STREAM_SIZE or totals[1] > MAX_STREAM_SIZE:
+                    return AtomResult(
+                        AtomStatus.FAILED, "Stream exceeded limit, process SIGKILLed"
                     )
 
             exports = {
@@ -126,3 +172,18 @@ class ScriptAtom(Atom):
         finally:
             if job:
                 job.close()
+
+    def _read_stream(self, stream, outfile, is_err, process, totals, max_size):
+        try:
+            while True:
+                chunk = stream.read(4096)
+                if not chunk:
+                    break
+                idx = 1 if is_err else 0
+                totals[idx] += len(chunk)
+                if totals[idx] > max_size:
+                    process.kill()
+                    return
+                outfile.write(chunk)
+        except Exception:
+            pass

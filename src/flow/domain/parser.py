@@ -90,7 +90,16 @@ class StatusParser:
             # So if meta missing, we can't verify.
             pass
 
-        content = file_path.read_bytes()
+        import time
+
+        for _ in range(5):
+            try:
+                content = file_path.read_bytes()
+                break
+            except OSError:
+                time.sleep(0.05)
+        else:
+            content = file_path.read_bytes()
         current_hash = hashlib.sha256(content).hexdigest()
 
         try:

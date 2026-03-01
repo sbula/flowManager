@@ -65,8 +65,12 @@ Located at: `workflow_core.engine.core.engine`
 4.  **Complete**: Return final Context state.
 
 ### 3.2 State Persistence
-*   **Status File**: `status.md` acts as the visible state ledger.
-*   **Checkpoint**: The Engine can save context to disk (`.flow/context.json`) to support resume-on-failure.
+
+> [!WARNING]
+> **Database Prerequisite**: Flow state persistence (checkpointing, sub-flow tracking, lock coordination in §3.3) requires the embedded ACID database (SQLite WAL). The file-based approach (`context.json`) is insufficient for sub-flow reconciliation, parallel branch isolation, and crash-safe Two-Phase Commit described below. The DB must be introduced **before or alongside** the Flows implementation, not after. See `roadmap_2026.md` Phase 1.5.
+
+*   **Status File**: `status.md` acts as the visible state ledger (human View only — the DB is the source of truth for machine state).
+*   **Checkpoint**: The Engine saves flow context to the state database to support resume-on-failure. A human-readable projection may be written to `.flow/context.json` for debugging.
 
 ### 3.3 Sub-Workflow Orchestration & Hydration
 When a Flow triggers another Flow (Sub-Flow), the Engine manages the boundary.

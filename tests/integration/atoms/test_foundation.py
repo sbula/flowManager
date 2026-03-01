@@ -20,12 +20,8 @@ def test_t2_01_run_id_hash_determinism():
     config = {"url": "http://localhost", "payload": {"data": "test"}}
     atom1 = WebhookAtom(config=config)
     atom2 = WebhookAtom(config=config)
-    h1 = hashlib.sha256(
-        json.dumps(atom1.config.model_dump(), sort_keys=True).encode()
-    ).hexdigest()
-    h2 = hashlib.sha256(
-        json.dumps(atom2.config.model_dump(), sort_keys=True).encode()
-    ).hexdigest()
+    h1 = atom1.get_hash()
+    h2 = atom2.get_hash()
     assert h1 == h2
 
 
@@ -40,12 +36,8 @@ def test_t2_02_cross_flow_collision_defense():
     atom2 = WebhookAtom(
         config={"url": "http://localhost", "payload": {"TriggerEventID": "B"}}
     )
-    h1 = hashlib.sha256(
-        json.dumps(atom1.config.model_dump(), sort_keys=True).encode()
-    ).hexdigest()
-    h2 = hashlib.sha256(
-        json.dumps(atom2.config.model_dump(), sort_keys=True).encode()
-    ).hexdigest()
+    h1 = atom1.get_hash()
+    h2 = atom2.get_hash()
     assert h1 != h2
 
 
@@ -380,16 +372,36 @@ def test_t2_13_dirty_state_heuristics(tmp_path):
 
 # T2.14 WAL File Corruption (Bit Flip)
 def test_t2_14_wal_file_corruption(tmp_path):
-    """T2.14 WAL File Corruption (Bit Flip): The SQLite .flow_state/ WAL file is corrupted with random bytes. Expect StateCorruptionError or similar."""
-    db_path = tmp_path / ".flow" / "state.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    db_path.write_text("dummy state db")
+    """T2.14 WAL File Corruption (Bit Flip): Corrupted with random bytes. Expect Engine to decline changes and recover from valid snapshot."""
+    engine = Engine()
+    engine.root = tmp_path
+    engine.flow_dir = tmp_path / ".flow"
+    engine.flow_dir.mkdir(parents=True, exist_ok=True)
+    engine.persister = StatusPersister(engine.flow_dir)
+    engine.context = {"__root__": engine.root}
 
-    wal = tmp_path / ".flow" / "state.db-wal"
-    wal.write_bytes(b"corrupted_random_bytes_#@!*")
+    # Save initial valid state
+    tree = StatusTree()
+    from flow.domain.models import Task
 
-    assert wal.exists()
-    assert len(wal.read_bytes()) > 0
+    task = Task(id="1", name="[Test] Run", status="pending", indent_level=0)
+    tree.root_tasks.append(task)
+    tree._reindex()
+    engine.persister.save(tree)
+
+    # Backup is created upon first load/save (decline_changes uses .bak if exists or re-parses).
+    # Since we need a backup, let's load it first to ensure backup exists
+    time.sleep(0.01)
+    engine.persister.save(tree)
+
+    # Corrupt the main status file with non-utf8 unparsable binary garbage
+    status_file = engine.flow_dir / "status.md"
+    status_file.write_bytes(b"\x00\xFF\xFE\x01corrupted\x99\x88\x77random\x00")
+
+    # Engine load should auto-recover from the previous valid state via fallback
+    recovered = engine.load_status()
+    assert len(recovered.root_tasks) == 1
+    assert recovered.root_tasks[0].id == "1"
 
 
 # T2.15 Hash Collision with Non-ASCII Characters

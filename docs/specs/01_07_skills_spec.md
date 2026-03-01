@@ -31,10 +31,17 @@ A Persona is a named configuration that applies a specific **Lens** to the LLM's
     "Checklist": [
       "Are all inputs validated?",
       "Is the cyclomatic complexity under control?"
-    ]
+    ],
+    "model_params": {
+      "temperature": 0.2,
+      "top_p": 0.9,
+      "top_k": 40
+    }
   }
 }
 ```
+
+> **Note**: The `model_params` field allows per-persona LLM parameter overrides. Analytical roles (QA, SRE, Quant) should use low temperature (0.0–0.2) for precision; creative roles (UI/UX, Product) can use higher (0.4–0.7). See [Agent Isolation Analysis §10](../analysis/agent_isolation.md) for full guidelines. Override precedence: Default → Persona → Expert Set.
 
 ### 2.2 Usage
 When a Flow Step requires an "Expert", the Engine:

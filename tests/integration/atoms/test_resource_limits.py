@@ -152,23 +152,33 @@ def test_t7_05_readonly_filesystem(tmp_path):
 
 # T7.06 CPU Starvation / Infinite While Loop
 def test_t7_06_cpu_starvation(tmp_path):
-    """T7.06 CPU Starvation / Infinite While Loop: Watchdog SIGKILL simulation."""
+    """T7.06 CPU Starvation / Infinite While Loop: Watchdog Timeout simulation."""
+    engine, _ = init_engine(tmp_path)
+    task = Task(id="6", name="[Test] CPU Starve", status="pending", indent_level=0)
+    tree = StatusTree()
+    tree.root_tasks.append(task)
+    tree._reindex()
+    engine.persister.save(tree)
 
-    # Actual SIGKILL requires process-level orchestrator test.
-    # Simulation: Watchdog raises a TimeoutError in Atom wrapper
-    class LoopAtom(Atom):
+    class StarveAtom(Atom):
         def run(self, context) -> AtomResult:
             import time
 
             start = time.time()
-            # Simulation of timeout enforcement
-            if time.time() - start < 60:
-                return AtomResult(AtomStatus.FAILED, "Watchdog Timeout")
+            while time.time() - start < 2:
+                pass
             return AtomResult(AtomStatus.SUCCESS, "Done")
 
-    atom = LoopAtom()
-    res = atom.run({})
-    assert res.status == AtomStatus.FAILED
+    # Set timeout natively using the config object
+    atom = StarveAtom()
+    atom.config.timeout = 0.5
+    engine.dispatch = lambda t: atom
+
+    with pytest.raises(SystemExit):
+        engine.run_task(task)
+
+    loaded_tree = engine.load_status()
+    assert loaded_tree.find_task(task.id).status in ("error", "skipped", "failed")
 
 
 # T7.07 Fork Bomb Defense
@@ -222,20 +232,29 @@ def test_t7_08_inode_exhaustion(tmp_path):
 # T7.09 ScriptAtom stdout/stderr Firehose
 def test_t7_09_stream_firehose(tmp_path):
     """T7.09 ScriptAtom stdout/stderr Firehose (Disk Flood)."""
+    engine, _ = init_engine(tmp_path)
+    task = Task(id="9", name="[Test] Firehose", status="pending", indent_level=0)
+    tree = StatusTree()
+    tree.root_tasks.append(task)
+    tree._reindex()
+    engine.persister.save(tree)
 
-    # Simulate the Engine ProcessSupervisor intercepting a 50MB stream.
-    class ScriptFirehoseAtom(Atom):
-        def run(self, context) -> AtomResult:
-            simulated_stream = "x" * (50 * 1024 * 1024)
-            if len(simulated_stream) > 10 * 1024 * 1024:
-                return AtomResult(
-                    AtomStatus.FAILED, "Stream exceeded limit, process SIGKILLed"
-                )
-            return AtomResult(AtomStatus.SUCCESS, "ok")
+    from flow.atoms.script import ScriptAtom
 
-    res = ScriptFirehoseAtom().run({})
-    assert res.status == AtomStatus.FAILED
-    assert "SIGKILLed" in res.message
+    # Emit 15MB which exceeds 10MB limit
+    script_path = tmp_path / "firehose.py"
+    script_path.write_text(
+        "import sys\nsys.stdout.write('x' * (15 * 1024 * 1024))\n", encoding="utf-8"
+    )
+    atom = ScriptAtom(config={"command": f'python "{script_path}"'})
+    engine.dispatch = lambda t: atom
+
+    # T7.09 Stream Firehose returns AtomStatus.FAILED gracefully, doesn't SystemExit
+    engine.run_task(task)
+
+    loaded = engine.load_status()
+    # It fails the atom directly
+    assert loaded.find_task(task.id).status in ("error", "skipped", "failed")
 
 
 # T7.10 Native Socket / Port Exhaustion
@@ -264,67 +283,86 @@ def test_t7_10_port_exhaustion(tmp_path):
 
 # T7.11 Ghost Asyncio Task Leakage
 def test_t7_11_ghost_asyncio_leakage(tmp_path):
-    """T7.11 Ghost Asyncio Task Leakage."""
+    """T7.11 Ghost Asyncio Task Leakage: Engine isolation bounds thread-local loops."""
+    engine, _ = init_engine(tmp_path)
+    task = Task(id="11", name="[Test] Asyncio Leak", status="pending", indent_level=0)
+    tree = StatusTree()
+    tree.root_tasks.append(task)
+    tree._reindex()
+    engine.persister.save(tree)
+
     import asyncio
 
     class AsyncLeakAtom(Atom):
         def run(self, context) -> AtomResult:
-            # Simulate an asyncio.create_task that leaks
             async def leak():
-                await asyncio.sleep(10)
+                await asyncio.sleep(2)
 
-            # Since the atom runs synchronously, if it started an asyncio loop,
-            # we want to ensure the loop is closed and tasks cancelled.
+            # Create a loop and task but don't finish it
             loop = asyncio.new_event_loop()
-            task = loop.create_task(leak())
-            # simulated engine cleanup:
-            for pending in asyncio.all_tasks(loop):
-                pending.cancel()
-            loop.close()
-            return AtomResult(AtomStatus.SUCCESS, "Completed, tasks cancelled")
+            asyncio.set_event_loop(loop)
+            loop.create_task(leak())
+            # Intentionally leak the loop
+            return AtomResult(AtomStatus.SUCCESS, "Completed but leaked asyncio task")
 
-    res = AsyncLeakAtom().run({})
-    assert res.status == AtomStatus.SUCCESS
-    assert "cancelled" in res.message
+    engine.dispatch = lambda t: AsyncLeakAtom()
+    engine.run_task(task)
+
+    loaded = engine.load_status()
+    assert loaded.root_tasks[0].status == "done"
 
 
 # T7.12 Python Sub-interpreter Thread Starvation
 def test_t7_12_thread_starvation(tmp_path):
     """T7.12 Python Sub-interpreter Thread Starvation."""
-    engine, flow_dir = init_engine(tmp_path)
-    # Simulate watchdog heartbeat failure
-    watchdog_heartbeat = time.time()
-    # Starving threads prevents heartbeat update
-    time.sleep(0.1)
-    if time.time() - watchdog_heartbeat > 0.05:
-        # Watchdog triggers SIGTERM
-        engine.context["watchdog_killed"] = True
+    engine, _ = init_engine(tmp_path)
+    task = Task(id="12", name="[Test] Starvation", status="pending", indent_level=0)
+    tree = StatusTree()
+    tree.root_tasks.append(task)
+    tree._reindex()
+    engine.persister.save(tree)
 
-    assert engine.context.get("watchdog_killed")
+    import threading
+
+    class ThreadStarveAtom(Atom):
+        def run(self, context) -> AtomResult:
+            import time
+
+            def spinner():
+                start = time.time()
+                while time.time() - start < 1:
+                    pass
+
+            for _ in range(5):
+                t = threading.Thread(target=spinner, daemon=True)
+                t.start()
+            return AtomResult(AtomStatus.SUCCESS, "Done")
+
+    engine.dispatch = lambda t: ThreadStarveAtom()
+    engine.run_task(task)
+
+    loaded = engine.load_status()
+    assert loaded.root_tasks[0].status == "done"
 
 
 # T7.13 C-Extension Memory Leaks
 def test_t7_13_c_extension_memory_leak(tmp_path):
     """T7.13 C-Extension Memory Leaks."""
     # To prevent dragging down the engine natively, untrusted/heavy C-extensions
-    # must be executed in isolated subprocesses. We simulate ScriptAtom delegating to subprocess.
-    import subprocess
+    # must be executed in isolated subprocesses. We use ScriptAtom.
+    engine, _ = init_engine(tmp_path)
+    task = Task(id="13", name="[Test] Subprocess", status="pending", indent_level=0)
+    tree = StatusTree()
+    tree.root_tasks.append(task)
+    tree._reindex()
+    engine.persister.save(tree)
 
-    class ScriptAtom(Atom):
-        def run(self, context) -> AtomResult:
-            # Simulate running a separate process that allocates and exits
-            try:
-                subprocess.run(
-                    [sys.executable, "-c", "import sys; sys.exit(0)"],
-                    check=True,
-                    capture_output=True,
-                    timeout=2,
-                )
-                return AtomResult(
-                    AtomStatus.SUCCESS, "Subprocess cleaned up memory naturally"
-                )
-            except subprocess.TimeoutExpired:
-                return AtomResult(AtomStatus.FAILED, "Subprocess timeout")
+    from flow.atoms.script import ScriptAtom
 
-    res = ScriptAtom().run({})
-    assert res.status == AtomStatus.SUCCESS
+    atom = ScriptAtom(config={"command": 'python -c "import sys; sys.exit(0)"'})
+    engine.dispatch = lambda t: atom
+
+    engine.run_task(task)
+
+    loaded = engine.load_status()
+    assert loaded.root_tasks[0].status == "done"

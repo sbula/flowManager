@@ -67,7 +67,7 @@ from flow.atoms import Atom, AtomResult, AtomStatus
 
 class SuccessAtom(Atom):
     def run(self, context, **kwargs):
-        return AtomResult(AtomStatus.SUCCESS, "Success", exports={"run_id": 1})
+        return AtomResult(AtomStatus.SUCCESS, "Success", exports={"my_val": 1})
 """
     (env / "custom_atoms.py").write_text(atom_code, encoding="utf-8")
 

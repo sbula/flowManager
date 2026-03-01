@@ -52,7 +52,7 @@ An **Atom** is a Unit of Work.
 ### 3.4. Flow Execution (The Orchestrator)
 A **Flow** describes a Control Structure (Sequence, Branch, Loop).
 
-> **Roadmap Note**: State persistence is currently file-based. To support scaling nested sub-flows, parallel execution, and concurrent features safely, state management will be migrated from file-based to an embedded ACID database (e.g., SQLite WAL). See `roadmap_2026.md` (Phase 1.5).
+> **Roadmap Note**: State persistence is currently file-based. The embedded ACID database (SQLite WAL) is a **prerequisite for Flows (01_08)** — sub-flow reconciliation, parallel branch isolation, and lock coordination require ACID transactions. See `roadmap_2026.md` (Phase 1.5). The DB can be introduced for flow state first, without migrating the status domain (01_02).
 
 *   **State Persistence**:
     *   **Mechanism**: **Synchronous Atomic Write**.

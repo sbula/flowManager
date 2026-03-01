@@ -64,7 +64,7 @@ def test_streaming_output_limit_exceeded(shell_tool, context):
             def read(self, size):
                 if self.cursor >= len(self.data):
                     return ""
-                chunk = self.data[self.cursor : self.cursor + size]
+                chunk = self.data[self.cursor: self.cursor + size]
                 self.cursor += len(chunk)
                 return chunk
 

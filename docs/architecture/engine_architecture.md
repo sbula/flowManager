@@ -1,10 +1,10 @@
 # Flow Manager: Core Engine Architecture
 
-## 1. The State Machine & Execution Loop
-The Flow Engine (`workflow_core/engine/core/engine.py`) is a **State-Persistent Workflow Orchestrator**. It executes a directed graph of steps defined in JSON/YAML.
+## 1. Background Daemon & State Machine
+The Flow Engine (`workflow_core/engine/core/engine.py`) is a **State-Persistent Workflow Orchestrator** designed to run as a **Background Daemon**, rather than a synchronous foreground script. This ensures decoupled interfaces (CLI and Web UI act as thin clients) and agent survivability across terminal closures.
 
 ### 1.1 State Schema (`WorkflowState`)
-The Engine does not keep state in memory. It persists state to disk (`.flow_state/`) after *every* step. This ensures crash recovery and "Time Travel" capabilities.
+The Engine does not keep state in memory. It persists state to disk (`.flow_state/`) after *every* step. This ensures crash recovery, multiplexing (working on multiple features simultaneously via the daemon), and "Time Travel" capabilities.
 ```python
 class WorkflowState:
     task_id: str              # Correlation ID
@@ -77,3 +77,18 @@ When `resume <task_id>` is called:
 The Flow Manager treats Git as a **Transaction Log**.
 - **Auto-Commit (`state_update.py`)**: After "Significant Steps", the Engine triggers a Git commit (`[FlowManager] Step {step_id}: {desc}`). Allows reversion to exact states before bad LLM calls.
 - **Branch Management**: Agent work happens on a feature branch. The Agent *cannot* push to `master`. Merging is a privileged "Human" action.
+
+---
+
+## 6. The Core MVP Execution Loop
+
+The "Happy Path" flowchart for Flow Manager feature execution emphasizes structural safety over raw generation:
+
+1. **Structured Spec Input**: Human defines constraints in a structured schema.
+2. **Graph Retrieval**: RAG retrieves specific, relevant symbols within a tight Controlled Operational Boundary (COB).
+3. **Agent Edit**: Agent leverages Context to generate a discrete file patch.
+4. **Validation Gate**:
+   - **[FAIL]**: Gate rejects structurally invalid code and feeds structured error back to the Agent.
+   - **[PASS]**: Gate writes file AND atomically updates the `.machine-doc/` Semantic Mirror index.
+5. **Visible Unit Tests**: An agent writes verification tests that the implementation agent can see.
+6. **Hidden Scenario Tests**: A distinct agent writes integration tests that the implementation agent *cannot see* to prevent adversarial gaming of test coverage.

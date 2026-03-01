@@ -302,7 +302,6 @@ def test_t5_2_07_orphaned_child_reconnection(tmp_path):
     # Simulate Engine B claiming the subflow's lock (orphaned child reconnection)
     # The lock for a subflow is conventionally managed at the subflow's root directory
     import json
-    import os
     import time
 
     # A Subflow's lock is placed beside its status file or in its own intent.lock
@@ -318,7 +317,7 @@ def test_t5_2_07_orphaned_child_reconnection(tmp_path):
     # Engine A should gracefully recognize it's waiting on the subflow, not crash or override the lock natively.
     # We assert that run_task on the parent completes normally without throwing LeftoverLock/RuntimeErrors,
     # meaning it correctly delegates authority to Node B.
-    from flow.atoms.base import AtomResult, AtomStatus
+    # run_task checks status and yields WAITING when delving into an active subflow
 
     # run_task checks status and yields WAITING when delving into an active subflow
     engine_A.run_task(t_parent)
@@ -410,31 +409,36 @@ def test_t5_2_11_cyclic_deadlock(tmp_path):
 def test_t5_2_12_unserializable_child_context(tmp_path):
     """T5.2.12 Unserializable Child Context on Break/Restart."""
     engine, flow_dir = init_engine(tmp_path)
-    
+
     # Simulate a child context that was somehow saved with invalid data
     # (e.g. manual poisoning or memory injection)
     class ForgedContext:
         def __init__(self):
             import threading
+
             self.lock = threading.Lock()
-    
+
     engine.context["child_export"] = ForgedContext()
-    
+
     from flow.domain.models import StatusTree, Task
+
     task = Task(id="1", name="[Test] Task", status="active", indent_level=0)
     tree = StatusTree()
     tree.root_tasks.append(task)
     tree._reindex()
     engine.persister.save(tree)
-    
+
     from flow.atoms import Atom, AtomResult, AtomStatus
+
     class ChildAtom(Atom):
         def run(self, context) -> AtomResult:
             # Attempt to return the poisoned context
-            return AtomResult(AtomStatus.SUCCESS, "ok", exports={"data": context.get("child_export")})
-            
+            return AtomResult(
+                AtomStatus.SUCCESS, "ok", exports={"data": context.get("child_export")}
+            )
+
     engine.dispatch = lambda t: ChildAtom()
-    
+
     with pytest.raises(RuntimeError, match="Atom returned non-serializable exports"):
         engine._execute_task_lifecycle(task)
 
@@ -443,13 +447,14 @@ def test_t5_2_12_unserializable_child_context(tmp_path):
 def test_t5_2_13_subflow_orphan_reparenting(tmp_path):
     """T5.2.13 Subflow Orphan Re-Parenting (DAU Attack): Check intent.lock mismatch."""
     engine, flow_dir = init_engine(tmp_path)
-    
+
     sub_dir = flow_dir / "sub"
     sub_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Create an intention lock for the subflow owned by a different task
     import json
     import time
+
     lock_file = sub_dir / "intent.lock"
     lock_data = {
         "pid": 99999,
@@ -457,7 +462,7 @@ def test_t5_2_13_subflow_orphan_reparenting(tmp_path):
         "task_id": "other_parent_task",
     }
     lock_file.write_text(json.dumps(lock_data), encoding="utf-8")
-    
+
     # Try to acquire the lock for the current parent task
     with pytest.raises(RuntimeError, match="Engine Locked by other_parent_task"):
         # The engine should reject it

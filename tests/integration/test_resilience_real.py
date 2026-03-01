@@ -29,10 +29,11 @@ def create_task(
 
 
 def run_engine_subprocess(cwd, task_id):
-    script = Path("tests/tools/run_engine_task.py").resolve()
+    tests_dir = Path(__file__).parent.parent
+    script = (tests_dir / "tools" / "run_engine_task.py").resolve()
     # Need to set PYTHONPATH to include src
     env = os.environ.copy()
-    src_path = Path("src").resolve()
+    src_path = (tests_dir.parent / "src").resolve()
     env["PYTHONPATH"] = f"{src_path};{env.get('PYTHONPATH', '')}"
 
     result = subprocess.run(
@@ -144,11 +145,19 @@ def test_zombie_lock_steal_timeout(tmp_path):
     assert "Engine Locked by other" in res.stderr
 
     # Case B: Stale Lock (Task X)
+    # Reset status to active, as Case A failure correctly marked it as error/skipped
+    create_task(flow_dir, task_id="1", name="Task Y", status="active")
+
     old_time = time.time() - 40
     lock_data["timestamp"] = old_time
     lock_path.write_text(json.dumps(lock_data), encoding="utf-8")
+    import os
+
+    os.utime(lock_path, (old_time, old_time))
 
     res = run_engine_subprocess(tmp_path, "1")
+    print(f"\\nSTDOUT:\\n{res.stdout}")
+    print(f"STDERR:\\n{res.stderr}")
     assert res.returncode == 0
     assert "Task Completed Successfully" in res.stdout
     assert not lock_path.exists()

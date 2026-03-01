@@ -61,9 +61,14 @@ gantt
 
 ### Phase 1.5: State DB Migration (Month 2.5)
 
-**Goal**: Refactor the Engine Core (`01_03`) state persistence from file-based JSON/tmp renames to an embedded ACID database (e.g., SQLite with WAL enabled).
+> [!IMPORTANT]
+> **Prerequisite for Flows (01_08)**: This phase was originally positioned as an optimization. It is now recognized as a **hard prerequisite** for the Flows spec. Sub-flow reconciliation, parallel branch isolation, Two-Phase Commit on sub-flow genesis, and lock coordination all require ACID transactions that file-based JSON cannot provide. The DB must be introduced **before or alongside** Flows implementation.
+
+**Goal**: Introduce an embedded ACID database (e.g., SQLite with WAL enabled) as the **single state backend** for the Engine Core. This replaces file-based JSON/tmp renames for flow state, and will eventually replace the Markdown-based status domain (01_02) as the machine-facing storage layer.
 
 **Rationale**: Relying on arbitrary file renaming becomes a locking nightmare and synchronization bottleneck when scaling up to nested sub-flows, map/fan-out parallelism, and concurrent work on multiple features. The Database will natively solve Resource Locking (Mutex) and Lineage tracking.
+
+**Scope Note**: The initial implementation does NOT need to migrate the status domain (01_02). The DB can be introduced for **flow state only** (checkpoint, sub-flow tracking, lock coordination). The status domain migration (status.md → DB-backed "Shadow State") is a separate, later step. See [01_02 Spec Evolution Notice](../specs/01_02_status_domain_spec.md).
 
 **Deliverables**:
 - [ ] Define strict `StateStoreInterface` Protocol in Python Engine Core.
@@ -107,6 +112,51 @@ gantt
 - Index 100k+ LOC in <5 minutes
 - Query retrieval <100ms
 - Relevant context in top 5 results (>80%)
+
+### Phase 2.5: Validation Gate & Symbol Index (Month 4.5)
+
+> **Spec**: [01_11_validation_gate_spec.md](../specs/01_11_validation_gate_spec.md)
+> **Proposal**: [validation_gate_proposal.md](validation_gate_proposal.md)
+
+**Goal**: Implement the semantic anti-hallucination firewall that validates agent-generated code against a deterministic symbol index before allowing writes.
+
+**Rationale**: While RAG improves context quality, the Validation Gate prevents *invalid output* from entering the codebase. This is the highest-leverage feature for making autonomous agents reliable.
+
+```mermaid
+gantt
+    title Phase 2.5: Validation Gate
+    dateFormat  YYYY-MM-DD
+    section Symbol Index
+    SymbolExtractor (Python AST)       :2026-05-15, 2w
+    IndexManager (Deterministic JSON)  :2026-05-29, 1w
+    Hierarchical Hashing (L1/L2/L3)    :2026-06-05, 1w
+    section Validation Gate
+    ValidationGate.validate()          :2026-06-12, 2w
+    LoomAtom Integration               :2026-06-26, 1w
+    Structured Error Feedback          :2026-07-03, 1w
+    section CI/CD
+    flow index CLI command             :2026-07-10, 1w
+    Pre-commit Hook Integration        :2026-07-17, 1w
+```
+
+**Deliverables**:
+- [ ] `SymbolExtractor` using Python `ast` module
+- [ ] `IndexManager` with deterministic JSON serialization
+- [ ] `.machine-doc/` directory structure (symbols, edges, file_hashes)
+- [ ] Hierarchical hashing (L1: implementation, L2: signature, L3: contract)
+- [ ] `ValidationGate.validate()` — symbol existence, signature compatibility, visibility enforcement
+- [ ] Integration with `LoomAtom` write path
+- [ ] Structured error feedback protocol (JSON violations → agent retry)
+- [ ] `flow index` CLI command
+- [ ] Pre-commit hook: `flow validate`
+
+**Success Criteria**:
+- Agent-generated code references only existing, accessible symbols
+- Zero false negatives (never passes invalid code)
+- < 5% false positive rate on real-world Python code
+- Index rebuild < 10 seconds for 50k LOC
+- Incremental update < 100ms per changed file
+- Index is deterministic: same code → same JSON, always
 
 ### Phase 3: Analysis Automation (Months 5-6)
 
@@ -434,6 +484,20 @@ docs/
 2. **Full Migration**: 100% workflows to V2
 3. **Production Hardening**: Security, observability, scale testing
 4. **Knowledge Transfer**: Team training and handoff
+
+## 11. [PROPOSAL] Strict MVP Loop Definition
+To ensure focused execution before attempting multi-language or deep static analysis, the following "Minimal Viable End-to-End Loop" is defined as the immediate milestone for V2:
+
+1.  **Structured Spec**: A JSON/YAML requirement defining entry points and constraints.
+2.  **Semantic Mirror (v0.1)**: Extract identity, signature, calls, visibility, and file path for Python only.
+3.  **Agent Code Generation**: Agent reads spec/mirror and produces a patch.
+4.  **Validation Gate**: Structurally validates the patch (symbol existence, signature matching).
+5.  **Apply + Mirror Update**: Atomic write + index update.
+6.  **Unit Test Generation**: Visible agent writes unit tests.
+7.  **Hidden Scenario Test**: Adversarial agent writes hidden scenario tests.
+8.  **Execution**: Pass both test suites to complete.
+
+**Goal**: Prove this loop works flawlessly on a single language (Python) before expanding scope.
 
 ## Conclusion
 

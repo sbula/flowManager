@@ -2,6 +2,14 @@
 
 > **Start Here**: This document explains what the Flow Manager is, why we built it, and the core concepts you need to understand.
 
+> [!CAUTION]
+> ## Deployment Isolation (Non-Negotiable)
+> In production, Flow Manager **MUST NOT** reside inside the target project's directory tree. It is installed and executed from a **separate, protected location** (e.g., a system-wide install, a dedicated tooling directory, or a container). This is a **security invariant**, not a convenience preference.
+>
+> **Why**: If Flow Manager lives inside the project it orchestrates, the agents it controls could modify, fake, or disable Flow Manager's own code — including the Validation Gate, SafePath, the Symbol Index, and the RAG manifest. This would completely destroy the trust boundary. The orchestrator must be **untouchable** by the agents it governs.
+>
+> **Rule**: Agents may read/write files in the **target project** only. They have **zero access** to Flow Manager's own source, config, or engine code.
+
 ## 1. What is the Flow Manager?
 
 The Flow Manager is an **Agentic Orchestration Engine** designed for **High-Assurance Software Development**.
@@ -53,11 +61,13 @@ The "System 2" Brain.
 
 ## 3. Directory Structure (Where things live)
 
+> **Note**: In production, Flow Manager is **not** located inside the target project. The directories below describe Flow Manager's *own* structure, deployed separately from the software it orchestrates. Only the `.flow/` directory exists inside the target project as the bridge between FM and the project.
+
 *   **`docs/specs/`**: The **Laws**. Hard requirements that must be met.
 *   **`docs/architecture/`**: The **Map**. Diagrams and patterns.
 *   **`docs/plans/`**: The **Roadmap**. Active execution plans.
 *   **`src/`**: The **Engine**. The Python code that runs the show.
-*   **`.flow/`**: The **Project State**. Your local configuration and status.
+*   **`.flow/`**: The **Project State**. Lives inside the *target project*. Your local configuration and status.
 
 ## 4. Getting Started
 

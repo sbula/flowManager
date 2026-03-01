@@ -23,7 +23,7 @@ def run_task(task_id):
 
     print(f"DEBUG: Running Task {task.name} ({task.id})")
     engine.run_task(task)
-    print("DEBUG: Task Completed Successfully")
+    print(f"DEBUG: Task Completed Successfully with status: {task.status}")
 
 
 if __name__ == "__main__":

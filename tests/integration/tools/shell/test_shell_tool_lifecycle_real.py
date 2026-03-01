@@ -14,8 +14,8 @@ PARENT_SCRIPT = """
 import sys
 import time
 import os
-from src.flow.tools.shell import ShellTool
-from src.flow.tools.base import ToolContext
+from flow.tools.shell import ShellTool
+from flow.tools.base import ToolContext
 
 def main():
     print(f"Parent PID: {os.getpid()}", flush=True)
@@ -114,16 +114,15 @@ def test_fate_sharing_real(tmp_path):
 
     # We need to ensure src is in pythonpath for parent.py
     env = os.environ.copy()
-    root = Path(__file__).parent.parent.parent.parent.parent  # Root of repo?
     # c:\development\pitbula\flowManager\tests\integration\tools\test_lifecycle_real.py
     # ... \tests\integration\tools
     # ... \tests\integration
     # ... \tests
     # ... \flowManager
 
-    # Actually, simpler:
     repo_root = "c:/development/pitbula/flowManager"
-    env["PYTHONPATH"] = f"{repo_root};{env.get('PYTHONPATH', '')}"
+    src_root = f"{repo_root}/src"
+    env["PYTHONPATH"] = f"{src_root};{repo_root};{env.get('PYTHONPATH', '')}"
 
     # 2. Start Parent
     parent_proc = subprocess.Popen(
@@ -149,7 +148,12 @@ def test_fate_sharing_real(tmp_path):
                 break
         time.sleep(0.5)
 
-    assert child_pid is not None, "Child process did not start or write PID"
+    if child_pid is None:
+        parent_proc.terminate()
+        out, err = parent_proc.communicate()
+        print("STDOUT:", out, file=sys.stderr)
+        print("STDERR:", err, file=sys.stderr)
+        assert False, "Child process did not start or write PID"
 
     # Verify Child is running
     import psutil

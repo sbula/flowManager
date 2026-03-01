@@ -1,5 +1,16 @@
 # Behavioral Specification: Status Parser (Domain Model)
 
+> [!IMPORTANT]
+> ## Spec Evolution Notice
+> This specification documents the **current implementation** — a Markdown-based status parser acting as a "Database Driver" for `.flow/status.md`. This is the live, tested, production code.
+>
+> **Future**: When the embedded ACID database (SQLite WAL) is introduced (see `roadmap_2026.md` Phase 1.5), the status domain will migrate from Markdown-file-as-storage to DB-as-storage. At that point:
+> - `status.md` will become a **read-only human View** generated from the DB (the "Shadow State" pattern — see `v_next_architecture_proposal.md` Part 2).
+> - This spec will be superseded by a new `01_02_v2_status_domain_spec.md` documenting the DB-backed domain model.
+> - The parser's role changes from "Database Driver" to "View Renderer."
+>
+> Until that migration, **this spec is the source of truth** for the status domain.
+
 ## 1. Goal
 The Status Parser is the **User Interface**. It reads `status.md` (typically located in `.flow/status.md`) into a Domain Tree and writes changes back to disk. It acts as the "Database Driver" for the Markdown format. All project-specific files must reside in the `.flow/` folder.
 

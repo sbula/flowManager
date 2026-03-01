@@ -346,12 +346,13 @@ class Engine:
     def _register_signal_handlers(self, task: "Task") -> None:
         # T7.06 SIGINT Handling
         def handler(signum: int, frame: Any) -> None:
-            print(f"\\nCaught signal {signum}. Saving state and exiting...")
+            print(f"Caught signal {signum}. Saving state and exiting...")
             try:
                 if task:
                     self._handle_crash(
                         task, InterruptedError("Process Interrupted by User")
                     )
+                    sys.exit(1)
                 else:
                     sys.exit(1)
             except Exception:
@@ -398,9 +399,17 @@ class Engine:
         orig_stdout = sys.stdout
         orig_environ = os.environ.copy()
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(atom.run, read_only_context)  # type: ignore
-            result = future.result()
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(atom.run, read_only_context)  # type: ignore
+        timeout_val = getattr(atom.config, "timeout", None)
+        try:
+            result = future.result(timeout=timeout_val)
+        except concurrent.futures.TimeoutError:
+            raise TimeoutError(
+                f"Atom '{atom.__class__.__name__}' execution timed out after {timeout_val} seconds"
+            )
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
         # T9.01 sys.stdout Hijacking Defense
         if sys.stdout is not orig_stdout:
@@ -719,7 +728,9 @@ class Engine:
                     pass
 
 
-def fan_in_reducer(base_snapshot: Dict[str, Any], *branch_contexts: Dict[str, Any]) -> Dict[str, Any]:
+def fan_in_reducer(
+    base_snapshot: Dict[str, Any], *branch_contexts: Dict[str, Any]
+) -> Dict[str, Any]:
     """
     Merges multiple branch contexts (or exports) back into a base snapshot.
     Raises SchemaCollisionError if multiple branches modified or exported the same key.
@@ -734,7 +745,10 @@ def fan_in_reducer(base_snapshot: Dict[str, Any], *branch_contexts: Dict[str, An
             if k not in base_snapshot or base_snapshot[k] != v:
                 if k in modifications and modifications[k] != i:
                     from flow.domain.models import SchemaCollisionError
-                    raise SchemaCollisionError(f"Topological Merge Conflict: Key '{k}' modified by multiple parallel branches.")
+
+                    raise SchemaCollisionError(
+                        f"Topological Merge Conflict: Key '{k}' modified by multiple parallel branches."
+                    )
                 modifications[k] = i
                 merged[k] = v
 

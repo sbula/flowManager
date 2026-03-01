@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.flow.tools.base import ToolContext
+from src.flow.tools.base import ToolContext, ToolError
 from src.flow.tools.shell import ShellTool
 from src.flow.tools.shell.win32_job import (
     JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -45,7 +45,8 @@ def test_job_object_creation_on_windows(context):
         "ctypes.windll.kernel32.SetInformationJobObject", return_value=True
     ) as mock_set:
 
-        job = WindowsJobObject()
+        # _setup_job_object normally creates a Job object and returns it, but the patch should be used here
+        WindowsJobObject()
 
         assert mock_create.called
         assert mock_set.called
@@ -103,12 +104,8 @@ def test_child_process_cleanup_on_exception(shell_tool, context):
         # Mock threading to raise Exception to simulate crash/error during monitoring
         # Or mock time.sleep to raise InterruptedError
         with patch("time.sleep", side_effect=RuntimeError(" Crash ")):
-            try:
+            with pytest.raises(ToolError):
                 shell_tool.run({"operation": "run_test", "target": "."}, context)
-            except ToolError:
-                pass  # Tool wraps exceptions
-            except Exception:
-                pass
 
         # REQUIRED: process.kill() must be called in finally block
         assert process.kill.called

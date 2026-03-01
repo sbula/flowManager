@@ -107,3 +107,86 @@ For a **Product Owner**, the *same template* renders:
 ## 4. Key Takeaway
 **We do not write prompts for experts.**
 We write **Personas** (Data) and **Templates** (Logic). The System *generates* the prompt at runtime. This guarantees that a "Quant Dev" behaves consistently across Research, Implementation, and Review phases, because they are always instantiated from the same `expert_personas.json` source of truth.
+
+---
+
+## 5. Adversarial Review Phase
+
+> **Full specification**: See [Agent Isolation Analysis §8](../analysis/agent_isolation.md)
+
+After the standard synthesis phase, an optional **adversarial step** introduces a "Critic" agent that is *structurally forbidden from approving*. This counteracts LLM sycophancy (mode collapse toward agreement).
+
+**Key properties:**
+*   Output schema has NO "APPROVE" option — only structured issue lists
+*   Configurable `min_issues_required` threshold
+*   Clean Slate Protocol: critic has NO history of the collaborative discussion
+*   Gated by task complexity: skipped for low, optional for medium, mandatory for high/critical
+
+---
+
+## 6. Rubric-Based Scoring
+
+> **Full specification**: See [Agent Isolation Analysis §9](../analysis/agent_isolation.md)
+
+Expert output includes self-assessment scores against a rubric with weighted dimensions:
+*   **Completeness** — Are all deliverables present?
+*   **Specificity** — Are findings grounded in file/line references?
+*   **Actionability** — Can findings be acted on without clarification?
+*   **Risk Identification** — Are non-obvious risks called out?
+
+The Synthesis Agent validates scores against `min_threshold` per dimension. Below threshold → automatic loop back. After `max_loops` → Human-in-the-Loop escalation.
+
+---
+
+## 7. [PROPOSAL] IDE-Native Parallel Agent Execution (ADK Integration) / Dispatcher Pattern
+
+To dramatically reduce execution time, prevent "lazy simulation," and avoid API costs when running locally, orchestration should leverage IDE-native parallel execution (like the Antigravity `Agent Development Kit (ADK)`).
+
+**The Problem: Mode Collapse / Lazy Simulation**
+If reviewers (e.g., SRE, Architect) run sequentially and share context, the latter agents tend to fall into "groupthink," mimicking the tone and agreeing with the previous expert rather than critically analyzing the code.
+
+**The Solution: Parallel Blind Reviews (Dispatcher Pattern)**
+Instead of a sequential loop or a custom Python threading solution, the orchestrator detects if it is running within an IDE context (e.g., Antigravity). If so, it acts as a "Dispatcher" and dispatches isolated "Sub-Agents" (e.g., Architect, SRE, Security) simultaneously via the native `ParallelAgent` class.
+*   **Isolation (Clean Slate Protocol)**: IDE-native parallel agents receive copies of the prompt and share ZERO subsequent chat history. They physically cannot see each other's output during the generation phase.
+*   **File-Based I/O**: Instead of outputting to a shared chat context, agents write their critiques to isolated temporary files (e.g., `.reviews/architect_review.md`).
+*   **Cost**: Uses the IDE's authenticated active session (e.g., Gemini Ultra quota) rather than external API keys.
+*   **Synthesis**: A final `Product Owner` (PO) or `Synthesis` Agent reads all the isolated review files, detects conflicts, and merges them into a final specification/document.
+
+---
+
+## 8. Model Parameter Overrides
+
+> **Full specification**: See [Agent Isolation Analysis §10](../analysis/agent_isolation.md)
+
+Expert personas may include `model_params` for per-role LLM configuration:
+
+```yaml
+model_params:
+  temperature: 0.1  # Very low for analytical work
+  top_p: 0.9
+  top_k: 40
+```
+
+**Guidelines:**
+| Role Category | Temperature |
+|:---|:---|
+| Analytical (QA, SRE, Quant) | 0.0 – 0.2 |
+| Structural (Architect, Backend) | 0.2 – 0.4 |
+| Creative (UI/UX, Product) | 0.4 – 0.7 |
+| Adversarial (Critic) | 0.0 – 0.2 |
+
+**Precedence**: Default → Persona → Expert Set (highest).
+
+---
+
+## 8. Evidence-Grounded Output
+
+> **Full specification**: See [Agent Isolation Analysis §11](../analysis/agent_isolation.md)
+
+Expert findings MUST include evidence citations with:
+*   `file` — validated via SafePath
+*   `line_start` / `line_end` — must be within actual file bounds
+*   `snippet` — must match content at those lines
+
+Ungrounded claims (severity ≥ MEDIUM without evidence) are downgraded in rubric scoring and flagged as "UNGROUNDED" by the synthesis agent.
+

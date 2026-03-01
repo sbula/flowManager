@@ -53,6 +53,6 @@ def test_t4_04_av_file_lock_simulation(tmp_path):
     ) as mock_rename:
         with patch.object(persister, "_update_hash"):
             persister.save(state, filename="status.md")
-            
+
             # Verify it retried once and then succeeded
             assert mock_rename.call_count == 2

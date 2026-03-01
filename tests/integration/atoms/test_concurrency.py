@@ -328,21 +328,53 @@ def test_t3_08_cyclic_lock_request(tmp_path):
 # T3.11 Lock Acquisition vs Step Timeout Race Condition
 def test_t3_11_step_timeout_race(tmp_path):
     """T3.11 Lock Acquisition vs Step Timeout: Engine prioritizes timeout. (Simulated execution bounds)"""
-    # Without full Engine event-loop watchdog, this test validates that Atom execution respects timeout yields natively.
-    # We will verify that a long-running Atom can be interrupted if we had a signal handler, but here we just
-    # ensure it doesn't bypass basic execution constraints.
+    engine = Engine()
+    engine.root = tmp_path
+    engine.flow_dir = tmp_path / ".flow"
+    engine.flow_dir.mkdir(parents=True, exist_ok=True)
+    from flow.domain.persister import StatusPersister
+
+    engine.persister = StatusPersister(engine.flow_dir)
+    engine.context = {"__root__": engine.root}
+
+    from flow.domain.models import StatusTree, Task
+
+    tree = StatusTree()
+    t = Task(id="1", name="[SlowMock] Run", status="pending", indent_level=0)
+    tree.root_tasks.append(t)
+    tree._reindex()
+    engine.persister.save(tree)
+
     import time
 
     from flow.atoms.base import Atom, AtomResult, AtomStatus
 
     class SlowAtom(Atom):
         def run(self, context) -> AtomResult:
-            time.sleep(0.1)
+            time.sleep(2)
             return AtomResult(status=AtomStatus.SUCCESS, message="done")
 
-    atom = SlowAtom()
-    res = atom.run({})
-    assert res.success is True
+    engine.registry_map = {"SlowMock": "slow_mock.SlowAtom"}
+    import sys
+
+    sys.modules["slow_mock"] = type("FakeModule", (), {"SlowAtom": SlowAtom})()
+
+    orig_dispatch = engine.dispatch
+
+    def mocked_dispatch(task_item):
+        atom = orig_dispatch(task_item)
+        atom.config.timeout = 0.5  # Set a timeout shorter than sleep
+        return atom
+
+    engine.dispatch = mocked_dispatch
+
+    # Engine should catch the TimeoutError via _handle_crash and trigger a SystemExit
+    with pytest.raises(SystemExit):
+        engine.run_task(t)
+
+    # Verify status transition to skipped (mapped from error)
+    loaded = engine.load_status()
+    assert loaded.root_tasks[0].status == "skipped"
 
 
 # T3.12 Un-Synchronized State DB Writes
@@ -385,17 +417,44 @@ def test_t3_13_deadlock_fd(tmp_path):
     test_file = tmp_path / "shared.txt"
     test_file.write_text("initial")
 
-    import concurrent.futures
-    import time
+    from flow.atoms.base import Atom, AtomResult, AtomStatus
 
-    def write_file():
-        with open(test_file, "a") as f:
-            f.write("test")
-            time.sleep(0.05)
+    class FileAppendAtom(Atom):
+        def run(self, context) -> AtomResult:
+            import time
+
+            with open(test_file, "a") as f:
+                f.write("test")
+                time.sleep(0.05)
+            return AtomResult(status=AtomStatus.SUCCESS, message="done")
+
+    import sys
+
+    sys.modules["file_append_mock"] = type(
+        "FakeModule", (), {"FileAppendAtom": FileAppendAtom}
+    )()
+
+    import concurrent.futures
+
+    from flow.domain.models import Task
+
+    def run_engine_instance(task_id):
+        engine = Engine()
+        engine.root = tmp_path
+        engine.flow_dir = tmp_path / ".flow"
+        # We only rely on execution sandbox bounds to verify file descriptors.
+        # Bypass intent_lock to specifically race OS file descriptor contention
+        engine.registry_map = {"FileAppend": "file_append_mock.FileAppendAtom"}
+        t = Task(id=task_id, name="[FileAppend] Wait", status="pending", indent_level=0)
+        atom = engine.dispatch(t)
+        # Execute it using isolated runner
+        from types import MappingProxyType
+
+        engine._run_atom_isolated(atom, MappingProxyType({}))
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
-        f1 = ex.submit(write_file)
-        f2 = ex.submit(write_file)
+        f1 = ex.submit(run_engine_instance, "1")
+        f2 = ex.submit(run_engine_instance, "2")
         f1.result(timeout=2)
         f2.result(timeout=2)
 

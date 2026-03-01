@@ -179,8 +179,6 @@ def test_t7_09_circular_dependency(valid_project):
         engine.load_status()
 
 
-
-
 def test_t7_11_registry_schema_invalid(valid_project):
     """T7.11 Registry Schema Invalid: String."""
     registry = valid_project / ".flow" / "flow.registry.json"
@@ -240,6 +238,3 @@ def test_t7_15_recursion_bomb(valid_project):
             engine.find_active_task()
         except RecursionError:
             pass
-
-
-

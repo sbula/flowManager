@@ -719,8 +719,289 @@ Begin your {{ stage }} work:
 - [ ] Measure output quality improvements
 - [ ] Tune success criteria based on results
 
+### Phase 5: Hardening (Sprint 5)
+
+- [ ] Integrate Adversarial Review Phase (§8)
+- [ ] Implement Rubric Scoring Engine (§9)
+- [ ] Add per-role model parameter overrides (§10)
+- [ ] Add citation/evidence requirements to output schemas (§11)
+- [ ] Integration with Validation Gate ([01_11](../specs/01_11_validation_gate_spec.md))
+
 ---
 
-**Status**: ✅ **CORRECTED** - Stage-agnostic personas + stage-specific criteria  
-**Key Fix**: Success criteria moved from expert personas to expert set configs  
-**Next**: Implement template rendering system
+## 8. Adversarial Review Phase
+
+### 8.1 Problem: Mode Collapse in Expert Reviews
+LLMs have a well-documented tendency toward sycophancy — agreeing with the presented work rather than critically evaluating it. In multi-agent review workflows, this manifests as:
+*   All experts "approving" with minor suggestions
+*   Convergence on generic positive feedback
+*   Failure to identify structural or logical issues
+
+### 8.2 The Adversarial Phase Pattern
+After the standard synthesis phase (§2.3 Phase 3), add a dedicated adversarial step:
+
+```yaml
+# workflow_core/config/expert_sets/adversarial_review.yaml
+set_id: adversarial_review
+description: "Mandatory adversarial critique of synthesized output"
+stage: adversarial
+isolation_level: SHARED  # Can see the synthesis output
+
+constraints:
+  no_approvals: true        # "APPROVE" is NOT a valid output status
+  min_issues_required: 3    # MUST find at least 3 issues
+  require_evidence: true    # Every claim must cite a specific line/section
+
+experts:
+  - devil_advocate
+
+expert_success_criteria:
+  devil_advocate: |
+    You are a CRITIC. You are STRUCTURALLY FORBIDDEN from approving.
+    Your job is to ATTACK the synthesis output.
+
+    You MUST deliver:
+    - 3+ structural issues with SPECIFIC references
+    - 2+ logical flaws or unstated assumptions
+    - 1+ risk scenario the authors did not consider
+    - A severity rating for EACH issue (CRITICAL/HIGH/MEDIUM/LOW)
+
+    Output format: JSON with issues_found array. No prose.
+
+    You FAILED if you deliver fewer than 3 issues.
+    You FAILED if any issue lacks a specific file/line reference.
+```
+
+### 8.3 Anti-Sycophancy Techniques
+The adversarial phase combines multiple techniques to ensure genuine criticism:
+
+1. **Clean Slate Protocol**: The critic agent is spawned in a fresh context (new `branch_id`) with NO history of the previous collaborative discussion. It receives only the final artifact.
+2. **Structural Prohibition**: The output schema literally does not include an "APPROVE" option. The agent's only valid outputs are structured issue lists.
+3. **Minimum Issue Threshold**: The agent must find a configurable minimum number of issues. If it cannot, the system flags the review as "Insufficient Criticism" and loops.
+4. **Chain-of-Thought Scratchpad**: Before producing the final structured output, the critic must produce a scratchpad section showing its reasoning. This forces deliberate analysis rather than reflexive approval.
+
+### 8.4 When to Apply
+| Task Complexity | Adversarial Phase |
+|:---|:---|
+| Low (simple fix) | Skipped |
+| Medium (feature) | Optional (based on confidence score) |
+| High (architecture) | Mandatory |
+| Critical (security) | Mandatory + elevated `min_issues_required` |
+
+---
+
+## 9. Rubric-Based Scoring
+
+### 9.1 Problem: Qualitative vs Quantitative Output
+Current `expert_success_criteria` (§3.3) are qualitative ("You FAILED if…"). While effective for guiding behavior, they are:
+*   Not machine-verifiable (requires human to judge compliance)
+*   Binary (pass/fail, no gradient)
+*   Cannot drive automated looping decisions
+
+### 9.2 Structured Rubric Schema
+Each expert set should define a rubric with numeric scoring:
+
+```yaml
+# Added to expert_set configuration
+rubric:
+  dimensions:
+    - name: "completeness"
+      description: "Are all requested deliverables present?"
+      weight: 0.3
+      min_threshold: 3  # On a 1-5 scale
+
+    - name: "specificity"
+      description: "Are findings specific with file/line references?"
+      weight: 0.3
+      min_threshold: 4
+
+    - name: "actionability"
+      description: "Can the team act on findings without clarification?"
+      weight: 0.2
+      min_threshold: 3
+
+    - name: "risk_identification"
+      description: "Are non-obvious risks identified?"
+      weight: 0.2
+      min_threshold: 3
+
+  overall_min_threshold: 3.5  # Weighted average must exceed this
+  auto_loop_on_fail: true     # If below threshold, loop back
+  max_loops: 2                # After 2 loops, escalate to human
+```
+
+### 9.3 Expert Output with Scores
+Experts include self-assessment scores in their structured output:
+```json
+{
+  "findings": [ ... ],
+  "self_scores": {
+    "completeness": 4,
+    "specificity": 5,
+    "actionability": 3,
+    "risk_identification": 4
+  },
+  "weighted_average": 4.1,
+  "confidence": 0.85
+}
+```
+
+### 9.4 Automated Score Validation
+The Synthesis Agent can validate self-scores against the rubric:
+*   If any dimension is below its `min_threshold` → reject and loop
+*   If `weighted_average` < `overall_min_threshold` → reject and loop
+*   After `max_loops` exhausted → escalate to Human-in-the-Loop (HITL)
+
+---
+
+## 10. LLM Model Parameter Overrides
+
+### 10.1 Motivation
+Different expert roles benefit from different model parameters:
+*   **Analytical roles** (Architect, SRE, QA) should use low temperature for logical rigor
+*   **Creative roles** (UI Designer, Product Owner) can use moderate temperature
+*   **Adversarial roles** (Critic, Devil's Advocate) should use low temperature to prevent "creative" dismissals
+
+### 10.2 Schema Extension
+Add to the expert persona definition:
+
+```yaml
+# workflow_core/config/experts/quant_developer.yaml
+role_id: quant_developer
+display_name: "Quantitative Developer"
+domains: [trading, research, backtesting, implementation, review]
+
+persona: |
+  You are a **Senior Quantitative Developer** ...
+
+focus_areas:
+  - Statistical rigor
+  - Backtesting methodology
+
+# NEW: Model parameter overrides
+model_params:
+  temperature: 0.1  # Very low for analytical work
+  top_p: 0.9
+  top_k: 40
+```
+
+### 10.3 Parameter Guidelines
+
+| Role Category | Temperature | Rationale |
+|:---|:---|:---|
+| Analytical (QA, SRE, Quant) | 0.0 – 0.2 | Minimize creativity, maximize precision |
+| Structural (Architect, Backend) | 0.2 – 0.4 | Balance between thoroughness and exploration |
+| Creative (UI/UX, Product) | 0.4 – 0.7 | Allow exploratory suggestions |
+| Adversarial (Critic, Devil's Advocate) | 0.0 – 0.2 | Rigorous, evidence-based criticism |
+
+### 10.4 Override Precedence
+```
+Default (flow_config.json) → Persona (experts/role.yaml) → Expert Set (expert_sets/set.yaml)
+```
+Expert Set overrides take highest precedence (a specific review task may need different params than the persona's default).
+
+---
+
+## 11. Evidence-Grounded Output (Citation Requirements)
+
+### 11.1 Problem: Ungrounded Claims
+Agents often make claims like "This function is inefficient" without citing specific code. This makes verification impossible and enables hallucination.
+
+### 11.2 Citation Schema
+Expert output must include evidence for every finding:
+
+```json
+{
+  "findings": [
+    {
+      "claim": "The retry logic has an off-by-one error",
+      "evidence": {
+        "type": "code_reference",
+        "file": "src/flow/engine/core.py",
+        "line_start": 142,
+        "line_end": 145,
+        "snippet": "for i in range(0, retry_count):"
+      },
+      "severity": "HIGH",
+      "suggested_fix": "Change to range(0, retry_count + 1)"
+    }
+  ]
+}
+```
+
+### 11.3 Validation Rules
+*   Every finding with severity >= `MEDIUM` MUST include at least one evidence reference.
+*   Evidence `file` must exist in the project (validated via `SafePath`).
+*   Evidence `line_start`/`line_end` must be within the file's actual line count.
+*   Evidence `snippet` must match the actual content at those lines (validated by the engine).
+
+### 11.4 Ungrounded Claim Penalty
+If an expert produces findings without evidence:
+*   The finding is downgraded in the rubric scoring (§9) dimension for "specificity"
+*   The synthesis agent flags it as "UNGROUNDED" and may discard it
+
+---
+
+## 12. Generalized Scratchpad Enforcement
+
+### 12.1 Problem: Shallow or Reflexive Expert Output
+The Chain-of-Thought Scratchpad is currently specified only for the adversarial critic (§8.3). However, the same problem — reflexive, shallow output without genuine deliberation — applies to *all* analytical expert roles (Architect, SRE, QA, Quant).
+
+### 12.2 Configurable `require_scratchpad` Flag
+Add to `expert_set` configuration:
+
+```yaml
+# workflow_core/config/expert_sets/trading_strategy_research.yaml
+constraints:
+  require_scratchpad: true   # NEW: mandatory for analytical roles
+```
+
+When enabled, the expert's prompt template must include:
+```jinja2
+## Scratchpad (MANDATORY — show your work before final output)
+Before producing your final structured output, you MUST reason through:
+1. 5 potential failure modes of the system under review
+2. 3 missing requirements or unstated assumptions
+3. Counter-arguments to your own initial observations
+
+Only AFTER completing this section may you produce your final findings.
+```
+
+### 12.3 Guidelines
+| Role Category | `require_scratchpad` |
+|:---|:---|
+| Analytical (QA, SRE, Quant, Architect) | `true` (mandatory) |
+| Creative (UI/UX, Product) | `false` (optional) |
+| Adversarial (Critic) | `true` (already required §8.3) |
+| Implementation (TDD Coach) | `false` |
+
+---
+
+## 13. Mock-First Protocol (Interface Before Implementation)
+
+### 13.1 Problem: Agent Writes Code Before Contract Exists
+When an agent jumps straight to implementation, the Validation Gate has nothing to validate against. The symbol index doesn't know what the *expected* interface should be — it only knows what *currently* exists.
+
+### 13.2 The Protocol
+Before an agent writes any implementation code, it must first:
+1. Define the interface/contract (e.g., class signatures, function stubs, proto definitions).
+2. Commit this to the symbol index (via `flow index --update`).
+3. Only then proceed to implementation.
+
+### 13.3 Enforcement via Validation Gate
+The gate can be extended to enforce this:
+*   If an implementation flow is active and the target symbols don't yet exist in the index → reject the implementation and prompt the agent to define the interface first.
+*   The spec's `must_call` constraints (from the structured task spec) must map to *existing* symbols before implementation begins.
+
+### 13.4 Benefits
+*   The Validation Gate has a target to validate against *during* implementation (not just after).
+*   Multiple agents can work in parallel — one defines the interface, others can immediately start implementing against it.
+*   Contract-first development naturally prevents tight coupling.
+
+---
+
+**Status**: ✅ **CORRECTED** - Stage-agnostic personas + stage-specific criteria
+**Key Fix**: Success criteria moved from expert personas to expert set configs
+**Additions (2026-03-01)**: Adversarial Review Phase, Rubric Scoring, Model Parameter Overrides, Evidence-Grounded Output, Generalized Scratchpad Enforcement, Mock-First Protocol
+**Next**: Implement template rendering system + Validation Gate integration
+

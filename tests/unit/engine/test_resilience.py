@@ -149,6 +149,7 @@ def test_t3_11_lock_stale_pid_steal(tmp_path):
     # Stale Lock (> 30s old)
     lock_file = engine.flow_dir / "intent.lock"
     import os
+
     # Create stale timestamp
     old_time = time.time() - 40
     lock_data = {"task_id": "other", "pid": 99999}

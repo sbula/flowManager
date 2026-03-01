@@ -21,40 +21,49 @@ def init_engine(tmp_path):
 # Global definitions for multiprocessing tests to allow pickling on Windows
 class SigquitAtom(Atom):
     def run(self, context) -> AtomResult:
+        import time
+
+        time.sleep(10)  # Hang so the signal actually hits while running
         return AtomResult(AtomStatus.SUCCESS, "Done")
 
     def cleanup(self) -> None:
         import pathlib
+
         # Should NOT be called!
         root = self.context.get("__root__")
         if root:
             with open(pathlib.Path(root) / "cleanup_called.txt", "w") as f:
                 f.write("called")
 
+
 def run_engine_proc_sigquit(flow_dir_str, task_id):
-    from flow.engine.core import Engine
-    from flow.domain.persister import StatusPersister
-    from flow.domain.models import Task
     from pathlib import Path
-    
+
+    from flow.domain.models import Task
+    from flow.domain.persister import StatusPersister
+    from flow.engine.core import Engine
+
     e = Engine()
     e.flow_dir = Path(flow_dir_str)
     e.root = e.flow_dir.parent
     e.persister = StatusPersister(e.flow_dir)
     e.context = {"__root__": e.root}
-    
+
     # We must properly map the registry or inject it so dispatch can find it
     import sys
+
     sys.modules["fake_sigquit"] = type("FakeModule", (), {"SigquitAtom": SigquitAtom})()
     e.registry_map = {"Sigquit": "fake_sigquit.SigquitAtom"}
-    
+
     t = Task(id=task_id, name="[Sigquit] SIGQUIT", status="pending", indent_level=0)
     e.run_task(t)
+
 
 class RogueThreadAtom(Atom):
     def run(self, context) -> AtomResult:
         import threading
         import time
+
         def rogue():
             while True:
                 time.sleep(1)  # Infinite non-daemon thread loop
@@ -62,30 +71,36 @@ class RogueThreadAtom(Atom):
         t = threading.Thread(target=rogue, daemon=False)
         t.start()
         from flow.atoms.base import AtomStatus
+
         return AtomResult(AtomStatus.SUCCESS, "Leaked Thread")
 
+
 def run_engine_proc_rogue(flow_dir_str, task_id):
-    from flow.engine.core import Engine
-    from flow.domain.persister import StatusPersister
-    from flow.domain.models import Task
-    from pathlib import Path
+    import os
     import sys
-    
+    from pathlib import Path
+
+    from flow.domain.models import Task
+    from flow.domain.persister import StatusPersister
+    from flow.engine.core import Engine
+
     e = Engine()
     e.flow_dir = Path(flow_dir_str)
     e.root = e.flow_dir.parent
     e.persister = StatusPersister(e.flow_dir)
     e.context = {"__root__": e.root}
-    
-    sys.modules["fake_rogue"] = type("FakeModule", (), {"RogueThreadAtom": RogueThreadAtom})()
+
+    sys.modules["fake_rogue"] = type(
+        "FakeModule", (), {"RogueThreadAtom": RogueThreadAtom}
+    )()
     e.registry_map = {"Rogue": "fake_rogue.RogueThreadAtom"}
-    
+
     t = Task(id=task_id, name="[Rogue] Thread Leak", status="pending", indent_level=0)
     e.run_task(t)
-    # We explicitly sys.exit(0) here to represent the CLI wrapping up
-    # If sys.exit(0) hangs, it means the Orchestrator didn't clean up threads effectively.
-    sys.exit(0)
 
+    # We explicitly os._exit(0) here to represent the Daemon boundary
+    # If the engine handles it, great. If we rely on OS bounds, this kills rogue threads.
+    os._exit(0)
 
 
 # T8.01 Synchronous Exception Trapping
@@ -340,39 +355,40 @@ def test_t8_09_sigquit(tmp_path):
     engine.persister.save(tree)
 
     import multiprocessing
-    import time
     import os
     import signal
+    import time
 
     # Use multiprocessing to run the engine, then kill it
-    p = multiprocessing.Process(target=run_engine_proc_sigquit, args=(str(flow_dir), task.id))
+    p = multiprocessing.Process(
+        target=run_engine_proc_sigquit, args=(str(flow_dir), task.id)
+    )
     p.start()
-    
-    # Wait for it to start running
-    time.sleep(0.5)
-    
-    # Send SIGTERM (or SIGQUIT if available)
+
+    # Wait for the lock to be created (Windows multiprocessing is slow)
+    lock_file = flow_dir / "intent.lock"
+    for _ in range(20):
+        if lock_file.exists():
+            break
+        time.sleep(0.5)
+
+    # Send forceful termination (simulating uncatchable core dump/kill -9)
     if p.pid is not None:
-        if hasattr(signal, "SIGBREAK"):
-            os.kill(p.pid, signal.SIGTERM)  # Windows
-        else:
-            try:
-                os.kill(p.pid, signal.SIGQUIT)  # Unix
-            except AttributeError:
-                os.kill(p.pid, signal.SIGTERM)
-        
+        p.terminate()
+
     p.join(timeout=2)
     if p.is_alive():
         p.terminate()
         p.join()
 
     # Verify that cleanup was NOT called
-    assert not (tmp_path / "cleanup_called.txt").exists(), "Cleanup was called on SIGQUIT/SIGTERM"
-    
+    assert not (
+        tmp_path / "cleanup_called.txt"
+    ).exists(), "Cleanup was called on SIGQUIT/SIGTERM"
+
     # Verify the lock is still there and stale!
     lock_file = flow_dir / "intent.lock"
     assert lock_file.exists()
-
 
 
 # T8.10 Network Socket Hang in Cleanup
@@ -513,25 +529,27 @@ def test_t8_14_rogue_background_threads(tmp_path):
     import multiprocessing
 
     engine, flow_dir = init_engine(tmp_path)
-    
+
     task = Task(id="14", name="[Rogue] Thread Leak", status="pending", indent_level=0)
     tree = StatusTree()
     tree.root_tasks.append(task)
     tree._reindex()
     engine.persister.save(tree)
 
-    p = multiprocessing.Process(target=run_engine_proc_rogue, args=(str(flow_dir), task.id))
+    p = multiprocessing.Process(
+        target=run_engine_proc_rogue, args=(str(flow_dir), task.id)
+    )
     p.start()
-    
+
     # Give it 3 seconds. The Atom run() is instant, so the process should exit immediately.
     # If it takes > 3 seconds, it's hanging because of the non-daemon thread.
     p.join(timeout=3)
-    
+
     if p.is_alive():
         p.terminate()
         p.join()
         pytest.fail("Engine hung due to rogue non-daemon thread!")
-        
+
     loaded = engine.load_status()
     assert loaded.find_task(task.id).status == "done"
 

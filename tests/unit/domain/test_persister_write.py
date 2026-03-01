@@ -1,5 +1,6 @@
 import hashlib
 import json
+from unittest.mock import patch
 
 import pytest
 
@@ -116,9 +117,9 @@ def test_t1_13_tamper_detection(temp_flow):
     path.write_text(content + "\n- [ ] Hacker Task", encoding="utf-8")
 
     # Load should fail (Integrity check in Parser, see test_integrity.py)
-    from flow.domain.parser import StatusParser
     from flow.domain.models import IntegrityError
-    
+    from flow.domain.parser import StatusParser
+
     with pytest.raises(IntegrityError):
         StatusParser(temp_flow.parent).load("status.md")
 
@@ -136,9 +137,6 @@ def test_t3_09_content_fidelity(temp_flow):
 
 
 # --- T3.04 Permission Denied (Mocked) ---
-from unittest.mock import patch
-
-
 def test_t3_04_permission_denied(temp_flow):
     p = StatusPersister(temp_flow)
     t = create_tree()
@@ -158,6 +156,7 @@ def test_t3_03_unicode_safety(temp_flow):
 
     content = (temp_flow / "unicode.md").read_text("utf-8")
     assert "Emoji 🐍" in content
+
 
 # --- T3.06 Line Endings ---
 def test_t3_06_line_endings(temp_flow):
