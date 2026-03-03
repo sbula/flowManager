@@ -42,10 +42,10 @@ def run_ask_codebase(query: str, profile: str = "default"):
     # Execute
     print(f"Executing [RagRetrievalAtom] with profile '{profile}'...")
     try:
-        # Dispatch and Run manually since run_task persists to status.md which we might not want for temporary queries?
+        # Dispatch and Run manually since run_task persists to
+        # status.md which we might not want for temporary queries?
         # But run_task encapsulates lifecycle.
         # If we use run_task, it will look for status.md.
-        # Let's use dispatch() directly for this "script" mode.
 
         atom = engine.dispatch(task)
         result = atom.run(engine.context)

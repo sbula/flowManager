@@ -330,7 +330,10 @@ class ShellTool(Tool):
                     status="error",
                     error={
                         "code": "OutputLimitExceeded",
-                        "message": f"Output exceeded {self.MAX_BUFFER_SIZE} bytes. Process terminated.",
+                        "message": (
+                            f"Output exceeded {self.MAX_BUFFER_SIZE}"
+                            " bytes. Process terminated."
+                        ),
                         "details": {"stdout": stdout_str, "stderr": stderr_str},
                     },
                 )

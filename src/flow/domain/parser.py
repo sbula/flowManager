@@ -107,7 +107,8 @@ class StatusParser:
             expected_hash = meta.get("hash")
             if current_hash != expected_hash:
                 raise IntegrityError(
-                    f"Integrity Mismatch! Expected {expected_hash[:8]}, got {current_hash[:8]}. File tampered."
+                    f"Integrity Mismatch! Expected {expected_hash[:8]},"
+                    f" got {current_hash[:8]}. File tampered."
                 )
         except (json.JSONDecodeError, KeyError):
             raise IntegrityError("Corrupt Meta file.")
@@ -228,7 +229,8 @@ class StatusParser:
                     new_visited = visited | {target_path}
                     try:
                         content = target_path.read_text(encoding="utf-8")
-                        # Parse without full check (to avoid redundantly checking integrity of sub-files here?
+                        # Parse without full check (to avoid redundantly
+                        # checking integrity of sub-files here?
                         # Or recursive check? Recursive is safer.)
                         sub_tree = self._parse_content(content)
                         self._validate_cycles(sub_tree.root_tasks, new_visited)

@@ -22,7 +22,8 @@ class TransformAtom(Atom):
         from typing import cast
 
         config = cast(TransformAtomConfig, self.config)
-        # The following line from the instruction is syntactically incorrect as 'resultconfig' is not defined
+        # The following line from the instruction is syntactically
+        # incorrect as 'resultconfig' is not defined
         # and 'target_key' is used before assignment.
 
         source_key = config.source_key

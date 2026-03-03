@@ -1,7 +1,7 @@
 import ast
 from typing import Any, Dict
 
-from pydantic import ConfigDict
+# pydantic used by AtomConfig base
 
 from .base import Atom, AtomConfig, AtomResult, AtomStatus
 

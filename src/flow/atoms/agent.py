@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
 from .base import Atom, AtomConfig, AtomResult, AtomStatus
 

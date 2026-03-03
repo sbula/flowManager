@@ -24,7 +24,6 @@ class ScriptAtom(Atom):
         return ScriptAtomConfig(**config)
 
     def _get_command(self) -> str | None:
-        import sys
         from typing import cast
 
         config = cast(ScriptAtomConfig, self.config)
@@ -80,7 +79,6 @@ class ScriptAtom(Atom):
                 )
 
                 if sys.platform == "win32":
-                    import ctypes
 
                     try:
                         proc_handle = int(process._handle)  # type: ignore
@@ -95,10 +93,6 @@ class ScriptAtom(Atom):
 
                 # Read streams with limits (T7.09 Firehose Defense)
                 MAX_STREAM_SIZE = 10 * 1024 * 1024  # 10 MB
-                import select
-                import time
-
-                start_time = time.time()
                 totals = [0, 0]  # total_out, total_err
 
                 # Manual poll loop since select.select doesn't work well on Windows pipes

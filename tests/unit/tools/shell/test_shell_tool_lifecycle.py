@@ -104,8 +104,10 @@ def test_child_process_cleanup_on_exception(shell_tool, context):
         # Mock threading to raise Exception to simulate crash/error during monitoring
         # Or mock time.sleep to raise InterruptedError
         with patch("time.sleep", side_effect=RuntimeError(" Crash ")):
-            with pytest.raises(ToolError):
-                shell_tool.run({"operation": "run_test", "target": "."}, context)
+            # ShellTool.run() catches all exceptions and returns ToolResult
+            # with status="error" — it does NOT raise ToolError.
+            result = shell_tool.run({"operation": "run_test", "target": "."}, context)
+            assert result.status == "error"
 
         # REQUIRED: process.kill() must be called in finally block
         assert process.kill.called

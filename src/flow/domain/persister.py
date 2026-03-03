@@ -16,14 +16,13 @@ class StatusPersister:
 
     def save(self, tree: StatusTree, filename: str = "status.md") -> None:
         """Saves with robust retry loop to handle Windows OS level concurrent file locks."""
-        import os
         import time
 
         for i in range(10):
             try:
                 self._save_internal(tree, filename)
                 return
-            except (PermissionError, OSError) as e:
+            except (PermissionError, OSError):
                 if i == 9:
                     raise
                 time.sleep(0.05)

@@ -540,3 +540,87 @@ These tests validate absolute correctness when navigating complex hierarchical b
 *   **T20.3.01 10MB Generate Response vs 128KB Exports Limit**: `generate()` returns a valid 10MB response string. The adapter returns it successfully. Verify that `AgentAtom` (01_05 §2) correctly routes this to a blob file (`.flow/artifacts/blob_*.txt`) rather than putting it into `AtomResult.exports` — the LLM layer MUST NOT enforce the 128KB limit, but the consumer must handle it. Document the boundary.
 *   **T20.3.02 Embed Timeout Scope**: `embed(texts, timeout_seconds=5)` where `texts` has 100 items. If the adapter internally chunks the batch (not V1, but defense-in-depth), verify the timeout applies to the **total** call, NOT per-chunk. Each chunk taking 3s would pass a per-chunk timeout but fail a total timeout.
 
+---
+
+## 21. Real Adapter Contract Tests
+
+> [!IMPORTANT]
+> These tests exercise the **real** `GeminiProvider` and `AnthropicProvider` adapters using mocked SDKs. All SDK calls are intercepted via `unittest.mock.patch` — no real API calls are made. Each adapter MUST pass the full CT-01 through CT-15 contract suite plus provider-specific edge cases.
+
+### 21.1 Gemini Adapter Contract Tests (`test_gemini_adapter.py`)
+
+> **Target**: `src/flow/llm/adapters/gemini_adapter.py`
+> **SDK**: `google-genai` (optional, `poetry install -E google`)
+> **Skip**: Entire file skipped if `google-genai` is not installed.
+
+#### CT-01–CT-15 (Abstract Contract — Gemini Instance)
+
+These are the same contract tests from §9 but run against a real `GeminiProvider` instance with mocked SDK:
+
+*   **CT-01 Has Provider Name**: `provider_name` returns `"gemini"`.
+*   **CT-02 Configure Succeeds**: `configure()` with mocked Google API key succeeds.
+*   **CT-03 Generate After Configure**: `generate()` returns non-empty string from mocked `models.generate_content()`.
+*   **CT-04 Count Tokens After Configure**: `count_tokens()` returns `int >= 0` from mocked `models.count_tokens()`.
+*   **CT-05 Generate Before Configure**: `generate()` before `configure()` → `ProviderNotConfiguredError`.
+*   **CT-06 Double Configure**: Second `configure()` → `ProviderAlreadyConfiguredError`.
+*   **CT-07 Close Idempotent**: `close()` called 3x → no error.
+*   **CT-08 Generate After Close**: `generate()` after `close()` → `ProviderNotConfiguredError`.
+*   **CT-09 Configure After Close**: `configure()` after `close()` → `ProviderAlreadyConfiguredError`.
+*   **CT-10 Empty Messages Rejected**: `generate([])` → `ValueError`.
+*   **CT-11 None Messages Rejected**: `generate(None)` → `ValueError` or `TypeError`.
+*   **CT-12 Count Tokens Type Check**: `count_tokens(42)` → `TypeError`.
+*   **CT-13 Count Tokens Empty String**: `count_tokens("")` → `0`.
+*   **CT-14 Close Without Configure**: `close()` without `configure()` → no error.
+*   **CT-15 Invalid Role Rejected**: `generate([{"role": "god", ...}])` → `ValueError`.
+
+#### Gemini-Specific Edge Cases
+
+*   **TG.01 Missing SDK Raises Dependency Error**: Set `genai = None` → `MissingDependencyError` with install instructions.
+*   **TG.02 Missing API Key**: No `GOOGLE_API_KEY` env var → `LLMAuthError` with actionable message referencing the env var name.
+*   **TG.03 Empty API Key**: `GOOGLE_API_KEY=""` → `LLMAuthError`.
+*   **TG.04 Missing Model Key**: Config has no `model` key → `ProviderConfigError` (fires BEFORE SDK check).
+*   **TG.05 Empty Model Name**: `model=""` → `ProviderConfigError("Empty model name")` (distinct from missing key).
+*   **TG.06 Embedding Dimensions**: `embedding_dimensions` returns `768` when configured, `None` when unconfigured.
+*   **TG.07 Validate Uses Models List**: `validate()` calls `models.list()` (no token cost), returns `True`.
+*   **TG.08 Validate Returns False On Error**: `models.list()` raises → `validate()` returns `False` (no exception).
+*   **TG.09 Timeout Zero**: `timeout_seconds=0` → immediate `TimeoutError`.
+*   **TG.10 Negative Timeout**: `timeout_seconds=-1` → `ValueError`.
+*   **TG.11 Unknown Auth Method**: `auth.method="oauth2_custom"` → `ProviderConfigError`.
+*   **TG.12 Embed Empty List**: `embed([])` → `[]` without API call.
+*   **TG.13 Embed None Input**: `embed(None)` → `TypeError`.
+*   **TG.14 Embed Empty String**: `embed([""])` → `ValueError("must not be empty")`.
+*   **TG.15 Credential Sanitization**: API key with ZWSP/BOM/CRLF/tab → all invisible chars stripped before passing to `genai.Client(api_key=...)`.
+
+### 21.2 Anthropic Adapter Contract Tests (`test_anthropic_adapter.py`)
+
+> **Target**: `src/flow/llm/adapters/anthropic_adapter.py`
+> **SDK**: `anthropic` (optional, `poetry install -E anthropic`)
+> **Skip**: Entire file skipped if `anthropic` is not installed.
+
+#### CT-01–CT-15 (Abstract Contract — Anthropic Instance)
+
+Same contract tests as §9 run against a real `AnthropicProvider` instance with mocked SDK:
+
+*   **CT-01 Has Provider Name**: `provider_name` returns `"anthropic"`.
+*   **CT-02 Configure Succeeds**: `configure()` with mocked Anthropic API key succeeds.
+*   **CT-03 Generate After Configure**: `generate()` returns non-empty string from mocked `messages.create()`.
+*   **CT-04 Count Tokens After Configure**: `count_tokens()` returns `int >= 0` from mocked `count_tokens()`.
+*   **CT-05 through CT-15**: Same lifecycle/validation tests as Gemini contract above.
+
+#### Anthropic-Specific Edge Cases
+
+*   **TA.01 Embed Raises NotImplementedError**: `embed(["hello"])` → `NotImplementedError("does not support")`. Anthropic has no embeddings API.
+*   **TA.02 Embedding Dimensions Always None**: `embedding_dimensions` is always `None`.
+*   **TA.03 Missing SDK Raises Dependency Error**: Set `anthropic_sdk = None` → `MissingDependencyError`.
+*   **TA.04 Missing API Key**: No `ANTHROPIC_API_KEY` env var → `LLMAuthError`.
+*   **TA.05 Empty API Key**: `ANTHROPIC_API_KEY=""` → `LLMAuthError`.
+*   **TA.06 Missing Model Key**: Config has no `model` key → `ProviderConfigError` (fires BEFORE SDK check).
+*   **TA.07 Empty Model Name**: `model=""` → `ProviderConfigError("Empty model name")`.
+*   **TA.08 ADC Not Supported**: `auth.method="adc"` → `ProviderConfigError("not supported")`.
+*   **TA.09 None Auth Method Rejected**: `auth.method="none"` → `ProviderConfigError("requires authentication")`.
+*   **TA.10 Timeout Zero**: `timeout_seconds=0` → `TimeoutError`.
+*   **TA.11 Negative Timeout**: `timeout_seconds=-1` → `ValueError`.
+*   **TA.12 Credential Sanitization**: Invisible chars in API key stripped before passing to `anthropic.Anthropic(api_key=...)`.
+*   **TA.13 Close Releases Client**: `close()` calls `client.close()` and sets `_client = None`.
+*   **TA.14 System Message Handling**: System messages extracted from `messages` list and passed to `system=` parameter in `messages.create()`.
+
