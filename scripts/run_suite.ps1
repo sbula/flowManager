@@ -7,7 +7,7 @@ Write-Host "--------------" -ForegroundColor Gray
 
 # 1. Run Tests (Capture Output)
 Write-Host "Executing pytest..." -ForegroundColor Yellow
-cmd /c "poetry run pytest tests/unit --ignore=tests/unit/knowledge --ignore=tests/unit/atoms -v --junitxml=$ReportFile"
+cmd /c "poetry run pytest tests/unit --ignore=tests/unit/knowledge -v --junitxml=$ReportFile"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Pytest finished successfully." -ForegroundColor Green
