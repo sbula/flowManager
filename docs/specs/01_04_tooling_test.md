@@ -138,6 +138,9 @@ Consolidated Structure: 8 Chapters (Security, Loom, Shell, Knowledge, System, Re
 *   **T5.02 Context Immutability**:
     *   Input: Tool code attempts `context.allowed_commands.append("curl")`.
     *   Expect: `AttributeError` or change is ignored. Context is frozen/tuple.
+*   **T5.02a Skill Modifies `ToolContext` Before Passing to Tool (01_07 Cross-Ref)**:
+    *   Input: Skill code attempts to alter `tool_context.service_root` before calling a Tool.
+    *   Expect: `AttributeError` or change ignored. `ToolContext` is immutable. Tool receives the original Engine-injected context.
 *   **T5.03 Tool Composition Context**:
     *   Input: `SystemTool` (Outer) calls `ShellTool` (Inner).
     *   Expect: Inner tool receives the *original* `ToolContext` (volume_id, role), ensuring scope enforcement even in nested calls.
@@ -304,6 +307,7 @@ Consolidated Structure: 8 Chapters (Security, Loom, Shell, Knowledge, System, Re
 *   **T7.25 Budget Inheritance (Tool-in-Tool)**:
     *   Input: Tool A (Timeout=10s) calls Tool B (Default Timeout=30s).
     *   Expect: Tool B must expire at T+10s (Inherited Budget), not T+30s. Prevent "Time Extension" attacks.
+    *   **Note (01_07 Cross-Ref)**: With Skills wrapping Tools (01_07 §4), the full budget inheritance chain is: **Engine Step Timeout → Skill → Tool**. If the Engine Step timeout is 30s and the Skill's `expected_duration_ms` is 20s, any Tool called by the Skill must expire within the Skill's budget, not the Engine's outer timeout. Tests MUST verify the full three-layer chain.
 *   **T7.26 Tool Output Deserialization Attack**:
     *   Input: Tool returns valid JSON that deserializes into a Python Object (pickle-style exploit) or uses `__proto__` pollution.
     *   Expect: Strict JSON loader (e.g., `orjson`) that produces pure dicts, never objects.

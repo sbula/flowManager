@@ -613,7 +613,7 @@ When the Engine starts, it MUST:
 3.  **Cross-validate metadata**: The class's `name`, `version`, `description`, and `required_tools` MUST match the registry entry. Mismatches raise `RegistryError`.
 4.  **Validate `parameters_schema`**: Each Skill's `parameters_schema` MUST be a valid JSON Schema. The Engine validates using `jsonschema.Draft7Validator.check_schema()`. Additionally, the top-level `type` MUST be `"object"` — degenerate schemas (empty `{}`, `{"type": "string"}`, etc.) are rejected. All major LLM providers require object-type schemas for function parameters.
 5.  **Check for name collisions**: The registry JSON MUST be parsed with a duplicate-key-detecting decoder (e.g., `json.loads(text, object_pairs_hook=...)` that raises on repeated keys). If two registry entries share the same key, raise `RegistryError`: `"Duplicate skill name 'refactor_code' in registry."` Standard `json.loads()` silently takes the last value on duplicate keys — this would allow a second definition to silently shadow the first.
-6.  **Validate tool dependencies**: Every tool in `required_tools` MUST exist in the Tool Registry (01_04). Tool dependency validation SHOULD verify import success (not just registry key existence) at Engine startup. Missing or non-importable tools raise `RegistryError` at startup — not at runtime.
+6.  **Validate tool dependencies**: Every tool in `required_tools` MUST exist in the Tool Registry (01_04). Tool dependency validation MUST verify import success (not just registry key existence) at Engine startup. A tool that is registered but fails to import (e.g., due to a `SyntaxError` or missing dependency in the tool module) MUST raise `RegistryError` at startup — not silently pass and crash at runtime. Missing or non-importable tools raise `RegistryError` at startup.
 
 ### 5.3 Skill Discovery & Hot-Reloading
 
@@ -714,6 +714,7 @@ Where:
 *   `skill_name` — the Skill's registered name.
 *   `step_index` — the index of the Engine Step for Path 1, or the AgentAtom's step index for Path 2.
 *   `tool_call_index` — **the sequential invocation counter for this specific Skill within the current AgentAtom run** (Path 2 only). This is critical: in a single ReAct loop, the same Skill may be invoked multiple times.
+    *   **Path 2 Hand-Off Contract**: The `tool_call_index` is maintained by the **AgentAtom**, not the Engine. The AgentAtom MUST increment a per-Skill sequential counter before each `skill.execute()` call in the ReAct loop and pass it to the Engine for token derivation. If the AgentAtom fails to increment (e.g., due to a bug), two different Skill calls within the same ReAct loop will receive the **same** idempotency token, breaking the idempotency guarantee. Tests MUST verify that two sequential invocations of the same Skill within one ReAct loop produce **different** idempotency tokens.
     *   **CRITICAL (Idempotency Token Resumption Bug Fix)**: If the Engine crashes mid-ReAct loop and restarts, the Engine rehydrates the LLM thought history. The `tool_call_index` MUST be initialized based on `len(rehydrated_history_for_specific_skill)` upon restart. If it resumes at `0`, newly executed tools will hash to the same prior tokens, breaking idempotency. For Path 1, `tool_call_index` is always `0`.
     *   **Path 1 Retry Stability (By Design)**: For Path 1 retries, the idempotency token is intentionally stable across retry attempts. The `run_id` does not incorporate the retry count (per 01_05 §1.2 "RetryCount MUST NOT be included in the Base Hash"). This is correct: an external service receiving the same token on retry SHOULD deduplicate the request. The stable token is the mechanism that makes retries safe for at-least-once delivery.
 
@@ -753,6 +754,8 @@ This halts the Flow in a safe `PAUSED` state, signalling the human operator that
 2.  The Engine emits a structured event to the operator dashboard: `{"event": "flow_paused_for_expansion", "flow_id": "...", "skill": "...", "suggestion": "..."}`. 
 3.  The Flow's TTL timer (01_05 §5, `WAITING` state TTL) applies: if no human action is taken within the configured TTL, the Flow transitions to `TIMED_OUT`.
 4.  Human resolution: the operator redesigns the DAG, updates the Flow definition, and resumes or restarts the Flow.
+
+**Step Pointer Safety on Resume (Cross-Reference to 01_05 T5.2.10)**: When the operator modifies the DAG during the pause (e.g., adds new steps), the step index at which the Flow paused may now point to a completely different Skill. The Engine MUST validate the DAG version upon resume: if the DAG's `ConfigVersionHash` has changed since the pause, the Engine MUST raise `ConfigVersionMismatchError` (01_05 §5.2.10, also 01_03 §3.4.2) rather than blindly resuming at the old step index. The operator must explicitly choose to restart the Flow from scratch or use the CLI migration tool to reconcile the step pointer.
 
 ---
 
@@ -815,6 +818,31 @@ def cleanup(self) -> None:
 A Skill that returns `SkillResult(status=SUCCESS)` with no `exports` (or an empty `exports` dict) will cause a `KeyError` in any downstream Flow step that templates a reference to one of its expected export keys (e.g., `{{ steps.refactor_code.exports.patched_files }}`). The Skill produces a SUCCESS result; the Flow crashes at the next step's context resolution, not at the Skill boundary, making the root cause obscure.
 
 **Constraint**: Skill authors MUST document all `exports` keys that can be absent on success (e.g., when no files were changed). **Flow authors** MUST use the `on_failure` policy or a default filter on downstream template references. The Engine SHOULD emit a `WARNING` at startup if a Flow step references an exports key from a Skill whose `exports` documentation marks that key as optional.
+
+### 9.13 `execute()` Returns Invalid Types or Unknown Statuses
+If `execute()` returns `None` instead of `SkillResult` (e.g., a DAU forgets the `return` statement), the Engine's safety wrapper MUST catch `TypeError` and fail the step with a descriptive error. Similarly, if `execute()` returns a `SkillResult` with an unknown status string (not in `SkillStatus` enum), the Engine MUST reject it with `ValueError`. If `execute()` raises an **unhandled exception** (e.g., `IndexError`, `KeyError`), the Engine wraps it as `SkillResult(status=FAILED, error={"code": "UNHANDLED_EXCEPTION", "message": "<traceback>"})`. `SystemExit` and `KeyboardInterrupt` (`BaseException` subtypes) MUST NOT be caught by the Skill — the Engine handles these at a higher level (01_05 §6.1).
+
+### 9.14 `SkillResult(status=FAILED)` with Non-Empty `exports`
+A failing Skill MAY include partial results in `exports` (§4.2). **Constraint**: The Engine MUST process this case according to the Flow step's `on_failure` policy. If the policy is `halt`, the partial exports are discarded. If the policy is `ignore`, they are merged into context. The test must verify both paths.
+
+### 9.15 Path 2 DEGRADED Skill Self-Correction via ReAct Loop
+When a Skill degrades mid-ReAct loop (between the frozen `as_tool()` snapshot and the live dispatch check), the LLM has already been shown the tool and will attempt to invoke it. The dispatch check catches the DEGRADED status and returns a **descriptive tool error** to the LLM (not a raw `RegistryError`): `"Skill 'X' is currently unavailable (tools changed). Available skills: [...]"`. The LLM self-corrects by choosing an alternative Skill. This counts as a wasted ReAct iteration but is self-healing. The test MUST verify: (a) the tool error message is returned (not an unhandled exception), (b) the ReAct loop continues, and (c) the wasted iteration does NOT count against `max_schema_retries`.
+
+### 9.16 `max_schema_retries = 0` Boundary Condition
+If `max_schema_retries` is configured as `0` in `.flow/config.json`, the first schema validation failure from the LLM immediately terminates the ReAct loop with `SkillResult(status=FAILED, error={"code": "LLM_SCHEMA_CORRECTION_EXHAUSTED"})`. The test MUST verify this boundary: a zero-retry configuration produces an immediate failure, not a division-by-zero error or an off-by-one that allows one retry.
+
+### 9.17 Hot-Reload During Engine Startup Validation
+If the `FileSystemWatcher` fires a hot-reload event while the Engine is still performing its initial startup validation (before the Engine is ready to accept flows), the reload MUST be a no-op or queued until startup validation completes. Two concurrent validation passes running simultaneously can cause race conditions on the internal registry data structures.
+
+### 9.18 Hot-Reload with Partial File Save (Transactional Tear)
+If an operator saves `skills.registry.json` but `expert_personas.json` is still being written by the editor (the file is incomplete/truncated on disk), the debounce window (§5.3 point 2, 2000ms) MUST coalesce both saves into a single reload. The test MUST verify: (a) a partial JSON file does NOT trigger a reload, (b) the debounce correctly waits for the second file to be fully written before triggering validation.
+
+### 9.19 Engine Crash Between `execute()` Return and State Checkpoint Write
+If the Engine crashes **after** `execute()` returns `SkillResult(status=SUCCESS)` but **before** the state checkpoint is written to `.flow_state/`, the Engine will re-execute the Skill upon restart. For **Action Skills**, the Check-Then-Act pattern ensures idempotent re-execution (the desired state already exists, so the Skill returns SUCCESS immediately). For **Reasoning Skills**, re-execution is safe because they produce no side effects. For **RAG Skills**, re-execution is safe because queries are read-only. The test MUST verify all three categories.
+
+### 9.20 `PAUSED_FOR_EXPANSION` in Sub-Workflow
+When a Skill inside a sub-workflow returns `PAUSED_FOR_EXPANSION`, the **innermost** Flow transitions to `PAUSED_FOR_EXPANSION`. The parent Flow's step that spawned the sub-workflow MUST also transition to a waiting state (the parent cannot progress without the child's result). The TTL timer applies to the innermost Flow. Upon operator DAG modification and resume, the `ConfigVersionMismatchError` check (§8.5, also 01_05 T5.2.10) applies to the sub-workflow's DAG, not the parent's. The test MUST verify the upward state propagation chain.
+
 
 > [!NOTE]
 > All items below are explicitly **[FUTURE V2+]** and out of scope for V1. Each entry documents *why* it is deferred, to prevent premature implementation.

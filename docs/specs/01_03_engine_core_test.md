@@ -238,6 +238,7 @@ This file tracks **ALL** identified test cases for the V1.1 "Paranoid Hardened" 
 *   **T7.09 Circular Dependency**:
     *   **Input**: Workflow A includes B; B includes A.
     *   **Expect**: Parser detects cycle or Runtime hits `MAX_RECURSION_DEPTH` (e.g. 10) and fails safe.
+    *   **Note (01_07 Cross-Ref)**: Also test logical cycles via `PAUSED_FOR_EXPANSION`: Flow A invokes Skill X which returns `PAUSED_FOR_EXPANSION` suggesting Flow B, which itself uses Skill X → `PAUSED_FOR_EXPANSION` suggesting Flow A. This is a logical cycle, not a DAG cycle. The TTL timer (01_07 §8.5) prevents infinite human-in-the-loop loops.
 *   **T7.11 Registry Schema Invalid**:
     *   Input: `flow.registry.json` is a List, not Dict.
     *   Expect: `ConfigError` on startup.
@@ -250,5 +251,10 @@ This file tracks **ALL** identified test cases for the V1.1 "Paranoid Hardened" 
 *   **T7.16 Dual Engine Contention**:
     *   Input: Two Engines start on same `.flow`.
     *   Expect: First locks `intent.lock`. Second waits/fails.
-
+*   **T7.17 `PAUSED_FOR_EXPANSION` Engine State Transition (01_07 §8.5)**:
+    *   **Input**: Skill returns `SkillResult(status=PAUSED_FOR_EXPANSION)`.
+    *   **Expect**: Flow transitions to `PAUSED_FOR_EXPANSION` state (NOT `FAILED`, NOT `WAITING`). Engine emits `flow_paused_for_expansion` event. TTL timer starts. If no action before TTL → `TIMED_OUT`.
+*   **T7.18 `PAUSED_FOR_EXPANSION` Resume with Changed DAG (01_07 §8.5)**:
+    *   **Input**: Flow paused via `PAUSED_FOR_EXPANSION`. Operator modifies DAG. Resume attempted.
+    *   **Expect**: `ConfigVersionMismatchError` raised (01_05 §5.2.10). Operator must restart or reconcile.
 
