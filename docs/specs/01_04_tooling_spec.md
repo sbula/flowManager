@@ -230,6 +230,12 @@ Controlled execution of system commands. **Raw `run_command` is DEPRECATED.**
 | `git_push` | `remote`, `branch` | Pushes to remote. **Requires 'release_manager' Role**. | **RBAC Check** |
 | `git_checkout` | `branch`, `create_if_missing` | Switches branch. Creates if `create_if_missing=True`. | **Branch Name Policy** |
 | `install_dependencies` | `manager` (npm, poetry, cargo) | Installs dependencies using lockfiles (`npm ci`, `poetry install`). | **RBAC Check** |
+| `git_log` | `n` (int), `branch`, `format` | **[V2]** Shows commit history. `n` limits entries, `format` controls output (oneline, short, full). | **Read-Only** |
+| `git_stash` | `action` (push, pop, list, drop) | **[V2]** Manages stash entries. Useful for context-switching during multi-branch workflows. | **Service Scope Check** |
+| `git_merge` | `branch`, `no_ff` (bool) | **[V2]** Merges a branch into current. Defaults to `--no-ff`. Conflicts abort and return structured diff. | **Branch Policy** |
+| `git_rebase` | `branch`, `interactive` (bool) | **[V2]** Rebases current branch. `interactive=True` requires predefined fixup/squash instructions (no manual editor). | **RBAC Check** |
+| `git_tag` | `name`, `message`, `annotated` (bool) | **[V2]** Creates tags. Annotated tags include message. **Requires 'release_manager' Role**. | **RBAC Check** |
+| `git_reset` | `target`, `mode` (soft, mixed, hard) | **[V2]** Resets HEAD. `hard` mode **requires explicit confirmation** and is audited. | **Destructive Op Policy** |
 
 ### 4.2 Dangerous Command Policy
 *   **Dev Agents**:

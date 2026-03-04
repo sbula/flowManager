@@ -129,6 +129,33 @@ To satisfy the Orchestrator's need for discrete state boundaries, the `AgentAtom
     *   **CRITICAL (Tool Exactly-Once Execution & Sub-Run IDs)**: Tools are inherently side-effecting. The `AgentAtom` relies on the Engine's Tool-level transactional checkpointing (as defined in `01_04_tooling_spec`) to prevent duplicate tool execution upon ReAct loop resumption. To achieve this, the AgentAtom MUST generate absolute, deterministic `Sub-Run IDs` (e.g., `hash(AgentRunID + ToolName + ToolIndex)`) for every discrete tool execution to track individual intent and completion. It also relies on the Engine's external structural isolation to guarantee safe concurrent execution.
 3.  **Atomic Indivisibility**: The AgentAtom is a single node. Despite taking minutes to run and triggering thousands of tokens, it relies entirely on the Engine for Subflow routing and structural fault tolerance.
 
+### 3.3.1 Active-Skill Tracking Contract (Cleanup Propagation for Path 2)
+
+> **Implementation Timing**: MUST be implemented as part of the Skills spec (01_07) integration — specifically when wiring the `AgentAtom` → `Skill.execute()` dispatch path. Do NOT implement this before 01_07 Skills are integrated.
+
+When the `AgentAtom` invokes a `Skill` via the LLM function-call path (Path 2 — see 01_07 §4.1), the Engine does NOT directly know a Skill is running. The cleanup propagation chain therefore depends entirely on the AgentAtom tracking which Skill is currently in-flight.
+
+**Contract**:
+*   The `AgentAtom` MUST maintain an `_active_skill: Optional[Skill]` instance field.
+*   **Before** calling `skill.execute()`, the AgentAtom MUST set `self._active_skill = skill`.
+*   **Immediately after** `skill.execute()` returns (whether by normal return OR by exception), the AgentAtom MUST set `self._active_skill = None`.
+*   **Lockless Atomic Assignment**: In Python, object reference assignment (`self._active_skill = skill`) is atomic under the GIL. Introducing a `threading.Lock` around this assignment is explicitly forbidden, as a hanging thread holding the lock would cause the `SIGTERM` handler to deadlock entirely, preventing `cleanup()` from executing.
+
+**SIGTERM Propagation**:
+```python
+def cleanup(self) -> None:
+    active = self._active_skill  # Atomic read
+    if active is not None:
+        try:
+            active.cleanup()
+        except Exception as e:
+            log.error("Skill cleanup() raised: %s", e)
+```
+
+**Why this matters**: Without this contract, if `SIGTERM` fires during the brief window between two Skill invocations (i.e., while the LLM is reasoning and `_active_skill` is `None`), cleanup propagation silently does nothing. The Skill just completed successfully, but if a new Skill was mid-setup (e.g., temp file created, socket opened) the resources leak without cleanup.
+
+**Idempotency**: The `cleanup()` MUST be safe to call even if `_active_skill` returns `None` — this is the normal case when SIGTERM arrives between Skill calls.
+
 ### 3.4 Future Proposal: Database-Backed DAG Serialization
 Currently, if a system allows dynamic YAML generation for Flow definitions, there is a risk of YAML serialization corruption during hard crashes (Power Loss). 
 *   **Near-Future State**: Dynamic topologies or massive state payloads will be moved entirely off disk-based YAML/JSON into an embedded ACID Database (e.g., SQLite WAL or PostgreSQL for remote). This mitigates partial write corruption completely and removes the need for brittle `.yaml.tmp` Atomic file renames.

@@ -59,6 +59,11 @@ A **Flow** describes a Control Structure (Sequence, Branch, Loop).
     *   **Step**: Write `flow_state_{id}.tmp` -> `fsync` -> Atomic Rename.
     *   **No Debounce**: We prioritize Data Safety (ACID) over throughput.
 
+### 3.4.0 Sub-Flow Delegation (Escaping the Flat Execution Model) [FUTURE V2]
+*   **Mechanism**: An Atom or Skill may realize the current task is too complex for a single step and requires a full workflow.
+*   **Action**: It can return an intent (e.g., `status=DELEGATE`, `flow_ref="SecurityAudit"`).
+*   **Engine Handling**: The Orchestrator safely parks the current step, spawns the requested sub-flow natively, waits for it to complete via the event loop, and then resumes the parent step.
+
 ### 3.4.1 Context Propagation
 *   **Mechanism**: **Explicit Overlay**.
 *   **Logic**:
@@ -118,13 +123,19 @@ A **Flow** describes a Control Structure (Sequence, Branch, Loop).
 ### 4.1. The Crash Barrier (Error Boundaries)
 *   **Behavior**: Catch Exception -> Mark `ERROR` -> Save State -> Exit(1).
 *   **Recovery**: User can fix the issue and run `flow resume --retry <id>`.
-*   **Graceful Teardown (SIGINT)**:
+*   **Graceful Teardown (SIGINT / SIGTERM)**:
     *   **Signal**: Engine traps `SIGINT` (Ctrl+C) and `SIGTERM`.
     *   **Action**:
         1.  Mark current step `INTERRUPTED`.
-        2.  Call `atom.cleanup()` (if implemented).
+        2.  Call `atom.cleanup()` (or `skill.cleanup()`). **[FUTURE V2] Time-boxed execution**: The Engine MUST wrap this in a strict 5-second timeout. If it hangs (e.g., deadlocked thread or long network IO), the Engine MUST force-kill the thread/process.
         3.  Flush State to disk.
         4.  Exit(0).
+
+### 4.4. Infinite Retry Prevention & Schema Poisoning [FUTURE V2]
+*   **Problem**: If an LLM-driven Skill returns `RETRY` due to bad parameters, it might guess wrong forever.
+*   **Mechanism**:
+    *   **Feedback Loop**: When an execution yields `RETRY` (or fails Schema Validation), the Engine MUST append the exact validation error or failure reason to the active `WorkflowState.context_cache` so the LLM Agent can read *why* it failed before trying again.
+    *   **Circuit Breaker**: Follows the global retry limit (Section 3.1). Max 3 retries before escalating to `FATAL`.
 
 ### 4.2. Immutable Context
 *   **Constraint**: Atoms receive a **Read-Only** view of the Context (`types.MappingProxyType`).
