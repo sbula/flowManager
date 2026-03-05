@@ -6,7 +6,6 @@ that enforces the complete lifecycle contract from spec §3.
 It is used as the test subject across all test files.
 """
 
-import logging
 import threading
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
@@ -14,17 +13,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from flow.llm.errors import (
-    FactoryClosedError,
     LLMAuthError,
     LLMConnectionError,
     LLMGenerationError,
-    LLMRateLimitError,
-    MissingDependencyError,
-    ProfileNotFoundError,
     ProviderAlreadyConfiguredError,
     ProviderConfigError,
     ProviderNotConfiguredError,
-    ProviderRegistrationError,
 )
 from flow.llm.factory import LLMFactory
 from flow.llm.provider import LLMProvider
@@ -141,6 +135,36 @@ class MockProvider(LLMProvider):
         key = key.replace("\u2003", "")
         return key
 
+    def _validate_single_message(self, msg: Any, index: int) -> None:
+        """Validate a single message dict."""
+        if not isinstance(msg, dict):
+            raise ValueError(
+                f"messages[{index}] must be a dict, got {type(msg).__name__}."
+            )
+        if "role" not in msg:
+            raise ValueError(f"messages[{index}] is missing required 'role' key.")
+        if "content" not in msg:
+            raise ValueError(f"messages[{index}] is missing required 'content' key.")
+        role = msg["role"]
+        content = msg["content"]
+        if not isinstance(role, str):
+            raise ValueError(
+                f"messages[{index}]['role'] must be a string, got "
+                f"{type(role).__name__}."
+            )
+        if role not in self._VALID_ROLES:
+            raise ValueError(
+                f"messages[{index}]['role'] is '{role}', must be one "
+                f"of: {sorted(self._VALID_ROLES)}."
+            )
+        if not isinstance(content, str):
+            raise ValueError(
+                f"messages[{index}]['content'] must be a string, got "
+                f"{type(content).__name__}."
+            )
+        if content == "":
+            raise ValueError(f"messages[{index}]['content'] must not be empty.")
+
     def _validate_messages(self, messages: Any) -> None:
         """Validate messages input per spec §3 generate() input validation."""
         if messages is None:
@@ -150,34 +174,7 @@ class MockProvider(LLMProvider):
         if len(messages) == 0:
             raise ValueError("messages list must not be empty.")
         for i, msg in enumerate(messages):
-            if not isinstance(msg, dict):
-                raise ValueError(
-                    f"messages[{i}] must be a dict, got " f"{type(msg).__name__}."
-                )
-            if "role" not in msg:
-                raise ValueError(f"messages[{i}] is missing required 'role' key.")
-            if "content" not in msg:
-                raise ValueError(f"messages[{i}] is missing required 'content' key.")
-            role = msg["role"]
-            content = msg["content"]
-            if not isinstance(role, str):
-                raise ValueError(
-                    f"messages[{i}]['role'] must be a string, got "
-                    f"{type(role).__name__}."
-                )
-            if role not in self._VALID_ROLES:
-                raise ValueError(
-                    f"messages[{i}]['role'] is '{role}', must be one "
-                    f"of: {sorted(self._VALID_ROLES)}."
-                )
-            if not isinstance(content, str):
-                raise ValueError(
-                    f"messages[{i}]['content'] must be a string, got "
-                    f"{type(content).__name__}."
-                )
-            # RECOMMENDED: reject empty content
-            if content == "":
-                raise ValueError(f"messages[{i}]['content'] must not be empty.")
+            self._validate_single_message(msg, i)
 
     def generate(
         self,
@@ -216,6 +213,20 @@ class MockProvider(LLMProvider):
             )
         return response
 
+    def _validate_embed_input(self, texts: Any) -> None:
+        """Validate embed input texts."""
+        if texts is None:
+            raise TypeError("texts must be a list, got None.")
+        if not isinstance(texts, list):
+            raise TypeError(f"texts must be a list, got {type(texts).__name__}.")
+        for i, text in enumerate(texts):
+            if not isinstance(text, str):
+                raise ValueError(
+                    f"texts[{i}] must be a string, got {type(text).__name__}."
+                )
+            if text == "":
+                raise ValueError(f"texts[{i}] must not be empty.")
+
     def embed(
         self,
         texts: List[str],
@@ -223,21 +234,9 @@ class MockProvider(LLMProvider):
         timeout_seconds: int = 60,
     ) -> List[List[float]]:
         self._check_configured()
-
-        if texts is None:
-            raise TypeError("texts must be a list, got None.")
-        if not isinstance(texts, list):
-            raise TypeError(f"texts must be a list, got {type(texts).__name__}.")
+        self._validate_embed_input(texts)
         if len(texts) == 0:
             return []
-
-        for i, text in enumerate(texts):
-            if not isinstance(text, str):
-                raise ValueError(
-                    f"texts[{i}] must be a string, got " f"{type(text).__name__}."
-                )
-            if text == "":
-                raise ValueError(f"texts[{i}] must not be empty.")
 
         if self._embed_side_effect:
             raise self._embed_side_effect
@@ -245,7 +244,6 @@ class MockProvider(LLMProvider):
         if self._embed_response is not None:
             return self._embed_response
 
-        # Default: return consistent vectors
         dim = self._embedding_dims or 768
         return [[0.1] * dim for _ in texts]
 

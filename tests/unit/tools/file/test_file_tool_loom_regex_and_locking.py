@@ -72,7 +72,7 @@ def test_lock_manager_pid_check(tmp_path):
     ) as mock_pid_check:
         with manager.acquire(target):
             # Should succeed by breaking the lock
-            assert lock_file.exists() == False  # Old lock gone
+            assert lock_file.exists() is False  # Old lock gone
             # New lock should exist (with MY pid)
             # checking wildcard
             assert len(list(tmp_path.glob(".lock.target.txt.*"))) == 1

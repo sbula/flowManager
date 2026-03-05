@@ -1,8 +1,7 @@
-import logging
 import math
 import os
 import re
-from typing import Dict, Optional, Set
+from typing import Dict, Set
 
 
 class StreamRedactor:

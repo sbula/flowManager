@@ -7,11 +7,9 @@ Covers T8.1.01-T8.1.08.
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from unittest.mock import MagicMock
 
-import pytest
 
-from flow.llm.errors import LLMConnectionError, ProviderNotConfiguredError
+from flow.llm.errors import ProviderNotConfiguredError
 
 from .conftest import MockProvider
 
@@ -220,7 +218,7 @@ class TestProviderThreadSafety:
         """T8.1.08: 100 threads hammering generate() simultaneously.
         No deadlock, no crash, all complete within timeout."""
         errors = []
-        completed = threading.Event()
+        completed = threading.Event()  # noqa: F841
         count = {"done": 0}
         lock = threading.Lock()
 

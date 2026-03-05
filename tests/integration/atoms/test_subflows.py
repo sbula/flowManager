@@ -294,7 +294,6 @@ def test_t5_2_07_orphaned_child_reconnection(tmp_path):
     t_child = Task(id="sub_1", name="Child Task", status="active", indent_level=0)
     tree_B.root_tasks.append(t_child)
     tree_B._reindex()
-    from flow.domain.persister import StatusPersister
 
     # Parent's persister saves it under the ref path
     engine_A.persister.save(tree_B, "subflow_dir/status.md")

@@ -135,7 +135,7 @@ except SystemExit:
 """
     )
 
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: F841
         [sys.executable, str(script_path)], capture_output=True, text=True
     )
 
@@ -262,7 +262,7 @@ except SystemExit:
 """
     )
 
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: F841
         [sys.executable, str(script_path)], capture_output=True, text=True
     )
 

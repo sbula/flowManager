@@ -1,5 +1,3 @@
-import json
-from types import MappingProxyType
 
 import pytest
 
@@ -255,7 +253,11 @@ def test_t6_08_escape_sequence_poisoning(tmp_path):
 
 # T6.09 Invalid Atom Schema Declaration
 def test_t6_09_invalid_atom_schema(tmp_path):
-    """T6.09 Missing field in properties. Not strictly Engine level until Agent schema validation, but we assume an Atom raising error on init."""
+    """T6.09 Missing field in properties.
+
+    Not strictly Engine level until Agent schema validation,
+    but we assume an Atom raising error on init.
+    """
     engine, _ = init_engine(tmp_path)
     task = Task(id="9", name="[Test] Bad Schema", status="pending", indent_level=0)
     tree = StatusTree()

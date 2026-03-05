@@ -7,14 +7,10 @@ and state persistence.
 Tests the Atom.get_hash() method and Engine-level state protocols.
 """
 
-import hashlib
-import json
-import math
-from types import MappingProxyType
 
 import pytest
 
-from flow.atoms.base import Atom, AtomConfig, AtomResult, AtomStatus, RetryStrategy
+from flow.atoms.base import AtomResult, AtomStatus
 from flow.domain.models import (
     ConfigVersionMismatchError,
     StateCorruptionError,
@@ -235,8 +231,8 @@ class TestStatePersistenceEdgeCases:
         next_retry_at_utc = 1700000000.0  # some future time
 
         # Monotonic anchor for drift detection
-        monotonic_anchor = time.monotonic()
-        expected_wait = 30.0  # 30s backoff
+        time.monotonic()
+        expected_wait = 30.0  # 30s backoff  # noqa: F841
 
         # Simulate massive clock jump (unrealistic drift)
         simulated_system_time = 0.0  # Year 1970

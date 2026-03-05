@@ -9,19 +9,13 @@ infinite __getattr__ traps, signal handler sabotage, and
 deep module patching.
 """
 
-import copy
 import os
 import signal
 import sys
 import threading
 from types import MappingProxyType
-from unittest.mock import patch
 
 import pytest
-
-from flow.atoms.base import AtomResult, AtomStatus
-
-from .conftest import MockAtom
 
 
 # ─── §9.1 stdout Hijacking ───────────────────────────────────────
@@ -35,7 +29,7 @@ class TestStdoutHijacking:
         original_stdout = sys.stdout
 
         # Simulate: Atom runs in isolated context
-        captured_stdout = sys.stdout  # Engine saves reference
+        captured_stdout = sys.stdout  # Engine saves reference  # noqa: F841
 
         # DAU Atom tries to hijack
         # (In real engine, this runs in subprocess or sandboxed context)
@@ -53,7 +47,7 @@ class TestStdoutHijacking:
 
     def test_t9_01_stdout_hijacking_detection(self):
         """T9.01 edge: Engine detects stdout was changed after Atom completes."""
-        original_stdout = sys.stdout
+        original_stdout = sys.stdout  # noqa: F841
 
         # Before atom execution
         saved_ref = id(sys.stdout)

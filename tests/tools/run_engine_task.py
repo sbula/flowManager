@@ -4,7 +4,7 @@ import sys
 # Add src to path
 sys.path.append(os.getcwd())
 
-from flow.engine.core import Engine
+from flow.engine.core import Engine  # noqa: E402
 
 
 def run_task(task_id):

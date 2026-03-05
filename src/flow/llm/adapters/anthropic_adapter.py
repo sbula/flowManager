@@ -77,34 +77,15 @@ class AnthropicProvider(LLMProvider):
         key = key.replace("\u2003", "")
         return key
 
-    def configure(self, config: Dict[str, Any]) -> None:
-        with self._lock:
-            if self._configure_called:
-                raise ProviderAlreadyConfiguredError(
-                    "configure() has already been called. "
-                    "Obtain a fresh instance via Factory.reset() + "
-                    "Factory.create()."
-                )
-            self._configure_called = True
-
-        # Validate model FIRST (structural config — needs no SDK)
-        if "model" not in config:
-            raise ProviderConfigError("Missing required 'model' key in config.")
-        model = config["model"]
-        if isinstance(model, str) and model.strip() == "":
-            raise ProviderConfigError("Empty model name. Specify a valid model.")
-
-        # Validate auth method BEFORE SDK check (structural config)
-        auth = config.get("auth", {})
+    def _validate_auth_method(self, auth: Dict) -> str:
+        """Validate and return the auth method for Anthropic."""
         auth_method = auth.get("method", "api_key")
-
         if not auth_method:
-            auth_method = "api_key"
             logger.warning("No auth method specified, defaulting to 'api_key'")
-
+            return "api_key"
         if auth_method == "none":
             raise ProviderConfigError(
-                "Anthropic requires authentication. " "method='none' is not supported."
+                "Anthropic requires authentication. method='none' is not supported."
             )
         if auth_method in ("adc", "vertex_adc"):
             raise ProviderConfigError(
@@ -116,18 +97,10 @@ class AnthropicProvider(LLMProvider):
                 f"Unknown auth method '{auth_method}'. "
                 "Supported for Anthropic: api_key, keyring."
             )
+        return auth_method
 
-        if anthropic_sdk is None:
-            raise MissingDependencyError(
-                "Anthropic SDK not installed. "
-                "Run 'pip install anthropic' or "
-                "'poetry install -E anthropic'."
-            )
-
-        self._model = str(model)
-        self._profile_name = config.get("profile_name", "unknown")
-        self._max_tokens = config.get("max_tokens", 4096)
-
+    def _init_client(self, auth_method: str, auth: Dict) -> Any:
+        """Initialize the SDK client with error-safe cleanup."""
         client = None
         try:
             if auth_method == "api_key":
@@ -148,10 +121,41 @@ class AnthropicProvider(LLMProvider):
                 except Exception:
                     pass
             raise LLMAuthError(
-                f"Failed to initialize Anthropic client: " f"{type(e).__name__}"
+                f"Failed to initialize Anthropic client: {type(e).__name__}"
             ) from e
+        return client
 
-        self._client = client
+    def configure(self, config: Dict[str, Any]) -> None:
+        with self._lock:
+            if self._configure_called:
+                raise ProviderAlreadyConfiguredError(
+                    "configure() has already been called. "
+                    "Obtain a fresh instance via Factory.reset() + "
+                    "Factory.create()."
+                )
+            self._configure_called = True
+
+        if "model" not in config:
+            raise ProviderConfigError("Missing required 'model' key in config.")
+        model = config["model"]
+        if isinstance(model, str) and model.strip() == "":
+            raise ProviderConfigError("Empty model name. Specify a valid model.")
+
+        auth = config.get("auth", {})
+        auth_method = self._validate_auth_method(auth)
+
+        if anthropic_sdk is None:
+            raise MissingDependencyError(
+                "Anthropic SDK not installed. "
+                "Run 'pip install anthropic' or "
+                "'poetry install -E anthropic'."
+            )
+
+        self._model = str(model)
+        self._profile_name = config.get("profile_name", "unknown")
+        self._max_tokens = config.get("max_tokens", 4096)
+
+        self._client = self._init_client(auth_method, auth)
         self._configured = True
 
     def _configure_api_key(self, auth: Dict) -> Any:
@@ -203,6 +207,36 @@ class AnthropicProvider(LLMProvider):
             )
         return anthropic_sdk.Anthropic(api_key=self._sanitize_credential(api_key))
 
+    def _validate_single_message(self, i: int, msg: Any) -> None:
+        """Validate a single message dict at index i."""
+        if not isinstance(msg, dict):
+            raise ValueError(
+                f"messages[{i}] must be a dict, got {type(msg).__name__}."
+            )
+        if "role" not in msg:
+            raise ValueError(f"messages[{i}] is missing required 'role' key.")
+        if "content" not in msg:
+            raise ValueError(f"messages[{i}] is missing required 'content' key.")
+        role = msg["role"]
+        content = msg["content"]
+        if not isinstance(role, str):
+            raise ValueError(
+                f"messages[{i}]['role'] must be a string, got "
+                f"{type(role).__name__}."
+            )
+        if role not in self._VALID_ROLES:
+            raise ValueError(
+                f"messages[{i}]['role'] is '{role}', must be one "
+                f"of: {sorted(self._VALID_ROLES)}."
+            )
+        if not isinstance(content, str):
+            raise ValueError(
+                f"messages[{i}]['content'] must be a string, got "
+                f"{type(content).__name__}."
+            )
+        if content == "":
+            raise ValueError(f"messages[{i}]['content'] must not be empty.")
+
     def _validate_messages(self, messages: Any) -> None:
         """Validate messages input per spec §3."""
         if messages is None:
@@ -212,45 +246,11 @@ class AnthropicProvider(LLMProvider):
         if len(messages) == 0:
             raise ValueError("messages list must not be empty.")
         for i, msg in enumerate(messages):
-            if not isinstance(msg, dict):
-                raise ValueError(
-                    f"messages[{i}] must be a dict, got " f"{type(msg).__name__}."
-                )
-            if "role" not in msg:
-                raise ValueError(f"messages[{i}] is missing required 'role' key.")
-            if "content" not in msg:
-                raise ValueError(f"messages[{i}] is missing required 'content' key.")
-            role = msg["role"]
-            content = msg["content"]
-            if not isinstance(role, str):
-                raise ValueError(
-                    f"messages[{i}]['role'] must be a string, got "
-                    f"{type(role).__name__}."
-                )
-            if role not in self._VALID_ROLES:
-                raise ValueError(
-                    f"messages[{i}]['role'] is '{role}', must be one "
-                    f"of: {sorted(self._VALID_ROLES)}."
-                )
-            if not isinstance(content, str):
-                raise ValueError(
-                    f"messages[{i}]['content'] must be a string, got "
-                    f"{type(content).__name__}."
-                )
-            if content == "":
-                raise ValueError(f"messages[{i}]['content'] must not be empty.")
+            self._validate_single_message(i, msg)
 
-    def generate(
-        self,
-        messages: List[Dict[str, str]],
-        *,
-        timeout_seconds: int = 120,
-        **kwargs: Any,
-    ) -> str:
-        self._check_configured()
-        self._validate_messages(messages)
-
-        # Validate timeout
+    @staticmethod
+    def _validate_timeout(timeout_seconds: Any) -> None:
+        """Validate timeout_seconds parameter."""
         if timeout_seconds is None:
             raise TypeError("timeout_seconds must be an int, got None.")
         if not isinstance(timeout_seconds, int):
@@ -263,7 +263,9 @@ class AnthropicProvider(LLMProvider):
         if timeout_seconds == 0:
             raise TimeoutError("Immediate timeout (timeout_seconds=0).")
 
-        # Separate system message from user/assistant messages
+    @staticmethod
+    def _prepare_api_messages(messages: List[Dict[str, str]]):
+        """Separate system message from user/assistant messages."""
         system_text = None
         api_messages = []
         for msg in messages:
@@ -271,23 +273,20 @@ class AnthropicProvider(LLMProvider):
                 system_text = msg["content"]
             else:
                 api_messages.append({"role": msg["role"], "content": msg["content"]})
-
-        # Anthropic requires at least one non-system message
         if not api_messages:
-            # System-only: convert to user message
             api_messages = [{"role": "user", "content": system_text or "."}]
             system_text = None
+        return system_text, api_messages
 
-        # Extract standardized kwargs
+    def _extract_generate_kwargs(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract and validate standardized kwargs for create()."""
         create_kwargs: Dict[str, Any] = {}
-        max_tokens = kwargs.pop("max_tokens", self._max_tokens)
-        create_kwargs["max_tokens"] = max_tokens
-
+        create_kwargs["max_tokens"] = kwargs.pop("max_tokens", self._max_tokens)
         if "temperature" in kwargs:
             temp = kwargs.pop("temperature")
             if not isinstance(temp, (int, float)):
                 raise ValueError(
-                    f"temperature must be a number, got " f"{type(temp).__name__}."
+                    f"temperature must be a number, got {type(temp).__name__}."
                 )
             if temp < 0:
                 raise ValueError("temperature must not be negative.")
@@ -301,9 +300,44 @@ class AnthropicProvider(LLMProvider):
             create_kwargs["top_p"] = kwargs.pop("top_p")
         if "top_k" in kwargs:
             create_kwargs["top_k"] = kwargs.pop("top_k")
+        return create_kwargs
 
-        # silently consume unknown kwargs (spec: pass-through)
-        _ = kwargs
+    @staticmethod
+    def _extract_response_text(response: Any) -> str:
+        """Extract text from Anthropic SDK response."""
+        text = None
+        try:
+            if hasattr(response, "content") and response.content:
+                text_blocks = [
+                    block.text for block in response.content if hasattr(block, "text")
+                ]
+                text = "".join(text_blocks)
+        except (AttributeError, TypeError) as e:
+            raise LLMGenerationError(
+                "Malformed SDK response: cannot extract text. "
+                f"{type(e).__name__}: {e}"
+            ) from e
+        if text is None:
+            raise LLMGenerationError("Provider returned None response.")
+        if not text.strip():
+            raise LLMGenerationError(
+                "Provider returned empty or whitespace-only response."
+            )
+        return text
+
+    def generate(
+        self,
+        messages: List[Dict[str, str]],
+        *,
+        timeout_seconds: int = 120,
+        **kwargs: Any,
+    ) -> str:
+        self._check_configured()
+        self._validate_messages(messages)
+        self._validate_timeout(timeout_seconds)
+
+        system_text, api_messages = self._prepare_api_messages(messages)
+        create_kwargs = self._extract_generate_kwargs(kwargs)
 
         import time
 
@@ -322,26 +356,7 @@ class AnthropicProvider(LLMProvider):
             self._map_sdk_error(e, latency_ms)
             raise  # unreachable
 
-        # Extract text from response
-        text = None
-        try:
-            if hasattr(response, "content") and response.content:
-                text_blocks = [
-                    block.text for block in response.content if hasattr(block, "text")
-                ]
-                text = "".join(text_blocks)
-        except (AttributeError, TypeError) as e:
-            raise LLMGenerationError(
-                "Malformed SDK response: cannot extract text. "
-                f"{type(e).__name__}: {e}"
-            ) from e
-
-        if text is None:
-            raise LLMGenerationError("Provider returned None response.")
-        if not text.strip():
-            raise LLMGenerationError(
-                "Provider returned empty or whitespace-only response."
-            )
+        text = self._extract_response_text(response)
 
         logger.info(
             "generate() completed",
@@ -364,6 +379,65 @@ class AnthropicProvider(LLMProvider):
         )
         return text
 
+    def _map_sdk_typed_error(self, error: Exception, error_type: str) -> None:
+        """Map Anthropic SDK typed exceptions. Raises on match."""
+        if anthropic_sdk is None:
+            return
+        if isinstance(error, anthropic_sdk.AuthenticationError):
+            raise LLMAuthError(f"Authentication failed: {error_type}") from error
+        if isinstance(error, anthropic_sdk.PermissionDeniedError):
+            raise LLMAuthError(f"Permission denied: {error_type}") from error
+        if isinstance(error, anthropic_sdk.RateLimitError):
+            raise LLMRateLimitError(f"Rate limit exceeded: {error_type}") from error
+        if isinstance(error, anthropic_sdk.NotFoundError):
+            raise ProviderConfigError(
+                f"Model '{self._model}' not found. "
+                f"Update the profile config. ({error_type})"
+            ) from error
+        if isinstance(
+            error,
+            (anthropic_sdk.APIConnectionError, anthropic_sdk.InternalServerError),
+        ):
+            raise LLMConnectionError(f"Connection error: {error_type}") from error
+        if isinstance(error, anthropic_sdk.APIStatusError):
+            self._map_api_status_error(error, error_type)
+
+    def _map_api_status_error(self, error: Exception, error_type: str) -> None:
+        """Map APIStatusError by HTTP status code."""
+        status = getattr(error, "status_code", 0)
+        if status in (401, 403):
+            raise LLMAuthError(f"Auth error (HTTP {status}): {error_type}") from error
+        if status == 429:
+            raise LLMRateLimitError(f"Rate limit (HTTP 429): {error_type}") from error
+        if status == 404:
+            raise ProviderConfigError(
+                f"Model '{self._model}' not found (HTTP 404)"
+            ) from error
+        if status in (500, 502, 503, 504):
+            raise LLMConnectionError(
+                f"Server error (HTTP {status}): {error_type}"
+            ) from error
+
+    @staticmethod
+    def _map_heuristic_error(error: Exception, error_str: str, error_type: str) -> None:
+        """Fallback heuristic error mapping by string matching."""
+        _MATCHERS = [
+            (lambda s: "401" in s or "403" in s,
+             lambda: LLMAuthError(f"Authentication failed: {error_type}")),
+            (lambda s: "429" in s or "rate" in s,
+             lambda: LLMRateLimitError(f"Rate limit exceeded: {error_type}")),
+            (lambda s: "ssl" in s or "certificate" in s,
+             lambda: LLMConnectionError(f"SSL/Certificate error: {error_type}")),
+            (lambda s: "connection" in s or "timeout" in s,
+             lambda: LLMConnectionError(f"Connection error: {error_type}")),
+            (lambda s: "context" in s and "window" in s,
+             lambda: LLMGenerationError(f"Context window overflow: {error_type}")),
+        ]
+        for predicate, exc_factory in _MATCHERS:
+            if predicate(error_str):
+                raise exc_factory() from error
+        raise LLMGenerationError(f"Generation failed: {error_type}: {error}") from error
+
     def _map_sdk_error(self, error: Exception, latency_ms: int) -> None:
         """Map SDK exceptions to standard error hierarchy per §6.2."""
         error_str = str(error).lower()
@@ -380,61 +454,8 @@ class AnthropicProvider(LLMProvider):
             },
         )
 
-        # Check for Anthropic-specific exception types
-        if anthropic_sdk is not None:
-            if isinstance(error, anthropic_sdk.AuthenticationError):
-                raise LLMAuthError(f"Authentication failed: {error_type}") from error
-            if isinstance(error, anthropic_sdk.PermissionDeniedError):
-                raise LLMAuthError(f"Permission denied: {error_type}") from error
-            if isinstance(error, anthropic_sdk.RateLimitError):
-                raise LLMRateLimitError(f"Rate limit exceeded: {error_type}") from error
-            if isinstance(error, anthropic_sdk.NotFoundError):
-                raise ProviderConfigError(
-                    f"Model '{self._model}' not found. "
-                    f"Update the profile config. ({error_type})"
-                ) from error
-            if isinstance(
-                error,
-                (
-                    anthropic_sdk.APIConnectionError,
-                    anthropic_sdk.InternalServerError,
-                ),
-            ):
-                raise LLMConnectionError(f"Connection error: {error_type}") from error
-            if isinstance(error, anthropic_sdk.APIStatusError):
-                status = getattr(error, "status_code", 0)
-                if status in (401, 403):
-                    raise LLMAuthError(
-                        f"Auth error (HTTP {status}): {error_type}"
-                    ) from error
-                if status == 429:
-                    raise LLMRateLimitError(
-                        f"Rate limit (HTTP 429): {error_type}"
-                    ) from error
-                if status == 404:
-                    raise ProviderConfigError(
-                        f"Model '{self._model}' not found (HTTP 404)"
-                    ) from error
-                if status in (500, 502, 503, 504):
-                    raise LLMConnectionError(
-                        f"Server error (HTTP {status}): {error_type}"
-                    ) from error
-
-        # Fallback: heuristic matching
-        if "401" in error_str or "403" in error_str:
-            raise LLMAuthError(f"Authentication failed: {error_type}") from error
-        if "429" in error_str or "rate" in error_str:
-            raise LLMRateLimitError(f"Rate limit exceeded: {error_type}") from error
-        if "ssl" in error_str or "certificate" in error_str:
-            raise LLMConnectionError(f"SSL/Certificate error: {error_type}") from error
-        if "connection" in error_str or "timeout" in error_str:
-            raise LLMConnectionError(f"Connection error: {error_type}") from error
-        if "context" in error_str and "window" in error_str:
-            raise LLMGenerationError(
-                f"Context window overflow: {error_type}"
-            ) from error
-
-        raise LLMGenerationError(f"Generation failed: {error_type}: {error}") from error
+        self._map_sdk_typed_error(error, error_type)
+        self._map_heuristic_error(error, error_str, error_type)
 
     def embed(
         self,

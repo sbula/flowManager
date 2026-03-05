@@ -34,9 +34,68 @@ class ScriptAtom(Atom):
             return f'python -c "{script}"'
         return None
 
-    def run(self, context: Dict[str, Any]) -> AtomResult:
+    def _setup_process(self, command, cwd, job):
+        """Create subprocess and optionally attach to Windows Job Object.
+        Returns (process, error_result)."""
         import sys
+        process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True,
+        )
+        if sys.platform == "win32":
+            try:
+                proc_handle = int(process._handle)  # type: ignore
+                if job:
+                    job.assign_process(proc_handle)
+            except Exception as e:
+                process.kill()
+                return None, AtomResult(
+                    AtomStatus.FAILED,
+                    f"Failed to attach process to Windows Job Object: {e}",
+                )
+        return process, None
 
+    def _monitor_streams(self, process, f_out, f_err, timeout):
+        """Monitor stdout/stderr streams with limits. Returns error_result or None."""
+        import threading
+        MAX_STREAM_SIZE = 10 * 1024 * 1024  # 10 MB
+        totals = [0, 0]
+
+        t_out = threading.Thread(
+            target=self._read_stream,
+            args=(process.stdout, f_out, False, process, totals, MAX_STREAM_SIZE),
+        )
+        t_out.daemon = True
+        t_err = threading.Thread(
+            target=self._read_stream,
+            args=(process.stderr, f_err, True, process, totals, MAX_STREAM_SIZE),
+        )
+        t_err.daemon = True
+        t_out.start()
+        t_err.start()
+
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            return AtomResult(
+                status=AtomStatus.FAILED,
+                message=f"Script execution timed out after {timeout}s",
+            )
+
+        t_out.join(timeout=1.0)
+        t_err.join(timeout=1.0)
+
+        if totals[0] > MAX_STREAM_SIZE or totals[1] > MAX_STREAM_SIZE:
+            return AtomResult(
+                AtomStatus.FAILED, "Stream exceeded limit, process SIGKILLed"
+            )
+        return None
+
+    def run(self, context: Dict[str, Any]) -> AtomResult:
         config = self.config
 
         command_to_execute = self._get_command()
@@ -49,20 +108,16 @@ class ScriptAtom(Atom):
         task_id = context.get("__task_id__", "unknown-task")
         run_id = self.config.run_id or task_id
 
-        # Determine Blob Paths
         flow_artifacts_dir = Path(cwd) / ".flow" / "artifacts"
-
         try:
             flow_artifacts_dir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            # Catch Hardware IO Exhaustion (ENOSPC)
             return AtomResult(
                 AtomStatus.FAILED, f"Failed to create artifacts directory: {e}"
             )
 
         stdout_blob_name = f"blob_{run_id}_stdout.txt"
         stderr_blob_name = f"blob_{run_id}_stderr.txt"
-
         stdout_path = flow_artifacts_dir / stdout_blob_name
         stderr_path = flow_artifacts_dir / stderr_blob_name
 
@@ -70,77 +125,17 @@ class ScriptAtom(Atom):
 
         try:
             with open(stdout_path, "wb") as f_out, open(stderr_path, "wb") as f_err:
-                process = subprocess.Popen(
-                    command_to_execute,
-                    cwd=cwd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    shell=True,
+                process, setup_err = self._setup_process(
+                    command_to_execute, cwd, job,
                 )
+                if setup_err:
+                    return setup_err
 
-                if sys.platform == "win32":
-
-                    try:
-                        proc_handle = int(process._handle)  # type: ignore
-                        if job:
-                            job.assign_process(proc_handle)
-                    except Exception as e:
-                        process.kill()
-                        return AtomResult(
-                            AtomStatus.FAILED,
-                            f"Failed to attach process to Windows Job Object: {e}",
-                        )
-
-                # Read streams with limits (T7.09 Firehose Defense)
-                MAX_STREAM_SIZE = 10 * 1024 * 1024  # 10 MB
-                totals = [0, 0]  # total_out, total_err
-
-                # Manual poll loop since select.select doesn't work well on Windows pipes
-                import threading
-
-                t_out = threading.Thread(
-                    target=self._read_stream,
-                    args=(
-                        process.stdout,
-                        f_out,
-                        False,
-                        process,
-                        totals,
-                        MAX_STREAM_SIZE,
-                    ),
+                stream_err = self._monitor_streams(
+                    process, f_out, f_err, config.timeout,
                 )
-                t_out.daemon = True
-                t_err = threading.Thread(
-                    target=self._read_stream,
-                    args=(
-                        process.stderr,
-                        f_err,
-                        True,
-                        process,
-                        totals,
-                        MAX_STREAM_SIZE,
-                    ),
-                )
-                t_err.daemon = True
-                t_out.start()
-                t_err.start()
-
-                try:
-                    process.wait(timeout=config.timeout)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    return AtomResult(
-                        status=AtomStatus.FAILED,
-                        message=f"Script execution timed out after {config.timeout}s",
-                    )
-
-                t_out.join(timeout=1.0)
-                t_err.join(timeout=1.0)
-
-                if totals[0] > MAX_STREAM_SIZE or totals[1] > MAX_STREAM_SIZE:
-                    return AtomResult(
-                        AtomStatus.FAILED, "Stream exceeded limit, process SIGKILLed"
-                    )
+                if stream_err:
+                    return stream_err
 
             exports = {
                 "exit_code": process.returncode,

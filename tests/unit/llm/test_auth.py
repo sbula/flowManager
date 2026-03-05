@@ -6,8 +6,6 @@ T6.4.01-T6.4.04, T6.5.01-T6.5.02.
 """
 
 import logging
-import os
-from unittest.mock import MagicMock, patch
 
 import pytest
 

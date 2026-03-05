@@ -55,49 +55,56 @@ class KnowledgeTool(Tool):
     def __init__(self):
         self._client = get_rag_client()
 
+    def _op_search_knowledge(self, args: Dict[str, Any]) -> ToolResult:
+        query = args.get("query")
+        if not query:
+            raise ToolError("Query required for search", code="ValidationError")
+        results = self._client.search(query, args.get("limit", 5))
+        return ToolResult(status="success", data={"results": results})
+
+    def _op_find_usage(self, args: Dict[str, Any]) -> ToolResult:
+        symbol = args.get("symbol")
+        if not symbol:
+            raise ToolError("Symbol name required", code="ValidationError")
+        usages = self._client.find_usage(symbol)
+        return ToolResult(status="success", data={"usages": usages})
+
+    def _op_get_related_tests(self, args: Dict[str, Any]) -> ToolResult:
+        file_path = args.get("file_path")
+        if not file_path:
+            raise ToolError("File path required", code="ValidationError")
+        tests = self._client.get_related_tests(file_path)
+        return ToolResult(status="success", data={"tests": tests})
+
+    def _op_get_task_context(self, args: Dict[str, Any]) -> ToolResult:
+        task_id = args.get("task_id")
+        if not task_id:
+            raise ToolError("Task ID required", code="ValidationError")
+        ctx = self._client.get_task_context(task_id)
+        return ToolResult(status="success", data={"context": ctx})
+
     def run(self, args: Dict[str, Any], context: ToolContext) -> ToolResult:
         operation = args.get("operation")
 
-        try:
-            if operation == "check_status":
-                status = self._client.get_status()
-                return ToolResult(status="success", data=status)
-            elif operation == "search_knowledge":
-                query = args.get("query")
-                if not query:
-                    raise ToolError("Query required for search", code="ValidationError")
-                results = self._client.search(query, args.get("limit", 5))
-                return ToolResult(status="success", data={"results": results})
-            elif operation == "find_usage":
-                symbol = args.get("symbol")
-                if not symbol:
-                    raise ToolError("Symbol name required", code="ValidationError")
-                usages = self._client.find_usage(symbol)
-                return ToolResult(status="success", data={"usages": usages})
-            elif operation == "get_related_tests":
-                file_path = args.get("file_path")
-                if not file_path:
-                    raise ToolError("File path required", code="ValidationError")
-                tests = self._client.get_related_tests(file_path)
-                return ToolResult(status="success", data={"tests": tests})
-            elif operation == "get_system_map":
-                sys_map = self._client.generate_map(args.get("root_dir"))
-                return ToolResult(status="success", data={"map": sys_map})
-            elif operation == "get_task_context":
-                task_id = args.get("task_id")
-                if not task_id:
-                    raise ToolError("Task ID required", code="ValidationError")
-                ctx = self._client.get_task_context(task_id)
-                return ToolResult(status="success", data={"context": ctx})
-            else:
-                return ToolResult(
-                    status="error",
-                    error={
-                        "code": "UnknownOperation",
-                        "message": f"Unknown operation: {operation}",
-                    },
-                )
+        _OPS = {
+            "check_status": lambda: ToolResult(status="success", data=self._client.get_status()),
+            "search_knowledge": lambda: self._op_search_knowledge(args),
+            "find_usage": lambda: self._op_find_usage(args),
+            "get_related_tests": lambda: self._op_get_related_tests(args),
+            "get_system_map": lambda: ToolResult(
+                status="success", data={"map": self._client.generate_map(args.get("root_dir"))}
+            ),
+            "get_task_context": lambda: self._op_get_task_context(args),
+        }
 
+        try:
+            handler = _OPS.get(operation)
+            if handler:
+                return handler()
+            return ToolResult(
+                status="error",
+                error={"code": "UnknownOperation", "message": f"Unknown operation: {operation}"},
+            )
         except ToolError as e:
             return ToolResult(status="error", error={"code": e.code, "message": str(e)})
         except Exception as e:

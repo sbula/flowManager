@@ -6,7 +6,7 @@ Covers T4.1.01-T4.1.26, T4.2.01-T4.2.15, T4.3.01-T4.3.08.
 
 import pytest
 
-from flow.llm.errors import LLMGenerationError, ProviderNotConfiguredError
+from flow.llm.errors import LLMGenerationError
 
 from .conftest import MockProvider, MockProviderNoEmbed
 

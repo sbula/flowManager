@@ -39,30 +39,46 @@ class AssertionAtom(Atom):
             left = right
         return True
 
+    def _eval_expression(self, node: ast.Expression, context: Dict[str, Any]) -> Any:
+        return self._safe_eval(node.body, context)
+
+    def _eval_name(self, node: ast.Name, context: Dict[str, Any]) -> Any:
+        if node.id in context:
+            return context[node.id]
+        raise NameError(f"Name '{node.id}' not found in context")
+
+    def _eval_constant(self, node: ast.Constant, context: Dict[str, Any]) -> Any:
+        return node.value
+
+    def _eval_boolop(self, node: ast.BoolOp, context: Dict[str, Any]) -> Any:
+        if isinstance(node.op, ast.And):
+            return all(self._safe_eval(val, context) for val in node.values)
+        if isinstance(node.op, ast.Or):
+            return any(self._safe_eval(val, context) for val in node.values)
+        raise ValueError(f"Unsupported BoolOp: {type(node.op)}")
+
+    def _eval_attribute(self, node: ast.Attribute, context: Dict[str, Any]) -> Any:
+        obj = self._safe_eval(node.value, context)
+        if hasattr(obj, node.attr):
+            return getattr(obj, node.attr)
+        if isinstance(obj, dict) and node.attr in obj:
+            return obj[node.attr]
+        raise AttributeError(f"Attribute '{node.attr}' not found")
+
+    _EVAL_DISPATCH = {
+        ast.Expression: _eval_expression,
+        ast.Name: _eval_name,
+        ast.Constant: _eval_constant,
+        ast.Compare: lambda self, node, ctx: self._eval_compare(node, ctx),
+        ast.BoolOp: _eval_boolop,
+        ast.Attribute: _eval_attribute,
+    }
+
     def _safe_eval(self, node: ast.AST, context: Dict[str, Any]) -> Any:
-        if isinstance(node, ast.Expression):
-            return self._safe_eval(node.body, context)
-        elif isinstance(node, ast.Name):
-            if node.id in context:
-                return context[node.id]
-            raise NameError(f"Name '{node.id}' not found in context")
-        elif isinstance(node, ast.Constant):
-            return node.value
-        elif isinstance(node, ast.Compare):
-            return self._eval_compare(node, context)
-        elif isinstance(node, ast.BoolOp):
-            if isinstance(node.op, ast.And):
-                return all(self._safe_eval(val, context) for val in node.values)
-            elif isinstance(node.op, ast.Or):
-                return any(self._safe_eval(val, context) for val in node.values)
-        elif isinstance(node, ast.Attribute):
-            obj = self._safe_eval(node.value, context)
-            if hasattr(obj, node.attr):
-                return getattr(obj, node.attr)
-            elif isinstance(obj, dict) and node.attr in obj:
-                return obj[node.attr]
-            raise AttributeError(f"Attribute '{node.attr}' not found")
-        raise ValueError(f"Unsupported AST node: {type(node)}")
+        handler = self._EVAL_DISPATCH.get(type(node))
+        if handler is None:
+            raise ValueError(f"Unsupported AST node: {type(node)}")
+        return handler(self, node, context)
 
     def run(self, context: Dict[str, Any]) -> AtomResult:
         cfg: AssertionAtomConfig = self.config  # type: ignore

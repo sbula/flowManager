@@ -1,6 +1,5 @@
 import json
 import os
-import threading
 import time
 from pathlib import Path
 
@@ -129,12 +128,15 @@ def _worker_for_t3_01(flow_dir_str: str, task_dict: dict):
         # we can just catch BaseException which includes SystemExit and return False (failure)
         engine.run_task(t)
         return True
-    except BaseException as e:
+    except BaseException as e:  # noqa: F841
         return False
 
 
 def test_t3_01_concurrent_fan_out(tmp_path):
-    """T3.01 Concurrent Check-Then-Act Orthogonal Fan-Out: 5 branches execute. Engine locking ensures Sequential success/RuntimeError rejection."""
+    """T3.01 Concurrent Check-Then-Act Orthogonal Fan-Out.
+
+    5 branches execute. Engine locking ensures Sequential success/RuntimeError rejection.
+    """
     engine = Engine()
     engine.flow_dir = tmp_path / ".flow"
     engine.flow_dir.mkdir(parents=True, exist_ok=True)
@@ -168,9 +170,9 @@ def test_t3_01_concurrent_fan_out(tmp_path):
             if f.result() is True:
                 successful += 1
 
-    # Because lock ttl is 30s and workers fire simultaneously, 1 wins, 4 hit "Engine Locked by" RuntimeError
-    # (unless the winner finishes in 1ms and frees the lock before others check, but `intent.lock` read/write isn't atomic here, so we get collisions)
-    # The requirement is we don't crash the DB, but some might fail cleanly with Lock Errors.
+    # Because lock ttl is 30s and workers fire simultaneously, 1 wins,
+    # 4 hit "Engine Locked by" RuntimeError. The requirement is we don't
+    # crash the DB, but some might fail cleanly with Lock Errors.
     assert successful >= 1
 
 
@@ -261,7 +263,10 @@ def test_t3_10_lock_abandonment_oom(tmp_path):
 
 # T3.07 Phantom Lock Deletion (Splitted Network)
 def test_t3_07_phantom_lock_deletion(tmp_path):
-    """T3.07 Phantom Lock Deletion: DB drops lock. Host attempts to finalize. Expect LostLockError (crashing via SystemExit)."""
+    """T3.07 Phantom Lock Deletion.
+
+    DB drops lock. Host attempts to finalize. Expect LostLockError (crashing via SystemExit).
+    """
     engine = Engine()
     engine.flow_dir = tmp_path / ".flow"
     engine.flow_dir.mkdir(parents=True, exist_ok=True)
@@ -407,13 +412,17 @@ def test_t3_12_unsynced_state_db_writes(tmp_path):
             except Exception as e:
                 errors.append(e)
 
-    # We expect 0 crashed/dropped states from threading overlap (Python file writes of this size are usually atomic, or GIL protects)
+    # We expect 0 crashed/dropped states from threading overlap (Python file
+    # writes of this size are usually atomic, or GIL protects)
     assert len(errors) == 0
 
 
 # T3.13 Deadlock via Shared File Descriptors
 def test_t3_13_deadlock_fd(tmp_path):
-    """T3.13 Deadlock via Shared File Descriptors: Two Atoms attempt to open same file. Expect OS isolation without hanging."""
+    """T3.13 Deadlock via Shared File Descriptors.
+
+    Two Atoms attempt to open same file. Expect OS isolation without hanging.
+    """
     test_file = tmp_path / "shared.txt"
     test_file.write_text("initial")
 

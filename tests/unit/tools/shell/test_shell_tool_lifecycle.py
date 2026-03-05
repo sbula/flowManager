@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.flow.tools.base import ToolContext, ToolError
+from src.flow.tools.base import ToolContext
 from src.flow.tools.shell import ShellTool
 from src.flow.tools.shell.win32_job import (
     JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -12,7 +12,7 @@ from src.flow.tools.shell.win32_job import (
 
 @pytest.fixture
 def shell_tool():
-    with patch("src.flow.tools.shell.win32_job.WindowsJobObject") as mock_job_cls:
+    with patch("src.flow.tools.shell.win32_job.WindowsJobObject") as mock_job_cls:  # noqa: F841
         # We start with a fresh tool for each test
         tool = ShellTool()
         # Should we return the tool AND the mock?
@@ -54,10 +54,9 @@ def test_job_object_creation_on_windows(context):
         # Verify correctness of flags
         # implementation detail: info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
         # We can verify arguments to SetInformationJobObject
-        args = mock_set.call_args[0]
+        mock_set.call_args[0]
         # args[2] is the pointer to info. We can't easily inspect ctypes pointer content in mock
         # without complex side_effects, but verifying it was called is step 1.
-        pass
 
 
 def test_process_assignment_to_job(shell_tool, context):
@@ -121,7 +120,7 @@ def test_grandchild_fate_sharing_logic(context):
         "ctypes.windll.kernel32.CreateJobObjectW", return_value=123
     ), patch(
         "ctypes.windll.kernel32.SetInformationJobObject", return_value=True
-    ) as mock_set:
+    ) as mock_set:  # noqa: F841
 
         WindowsJobObject()
 

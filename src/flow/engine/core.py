@@ -3,12 +3,10 @@ import json
 import os
 import signal
 import sys
-import threading
 import time
-from contextlib import contextmanager
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 
 from flow.atoms import Atom, AtomResult, ManualInterventionAtom
 from flow.engine.models import RegistryError, RootNotFoundError
@@ -225,7 +223,7 @@ class Engine:
                     tree = parser.load()
                     tree._reindex()
                     return tree
-                except Exception as inner_e:
+                except Exception:
                     raise e
             raise
 
@@ -472,42 +470,41 @@ class Engine:
                 )  # exponential backoff
             return "pending"
 
+    def _merge_exports(
+        self, result: "AtomResult"
+    ) -> None:
+        """Validate and merge exports into context."""
+        self._validate_exports_security(result.exports)
+        for k, v in result.exports.items():
+            if k in self.context:
+                old_val = self.context[k]
+                if old_val is not None and not isinstance(v, type(old_val)):
+                    raise TypeError(
+                        f"Type shadowing detected for key '{k}': "
+                        f"expected {type(old_val).__name__}, got {type(v).__name__}"
+                    )
+        self.context.update(result.exports)
+
     def _process_atom_result(
         self, task: "Task", result: "AtomResult"
     ) -> Literal["pending", "active", "done", "skipped", "error", "RETRY"]:
         if result and result.success and result.exports:
-            # T3.10 / T6.06 / T6.07 / T6.08: Validate Serialization Safety
-            self._validate_exports_security(result.exports)
+            self._merge_exports(result)
 
-            # T5.1.02 Cross-Subflow Variable Type Shadowing
-            for k, v in result.exports.items():
-                if k in self.context:
-                    old_val = self.context[k]
-                    if old_val is not None and type(old_val) != type(v):
-                        raise TypeError(
-                            f"Type shadowing detected for key '{k}': expected {type(old_val).__name__}, got {type(v).__name__}"
-                        )
-
-            self.context.update(result.exports)
-
-        final_status: Literal[
-            "pending", "active", "done", "skipped", "error", "RETRY"
-        ] = "done"
+        _STATUS_MAP = {
+            "SUCCESS": "done",
+            "FAILED": "error",
+            "SKIPPED": "skipped",
+        }
 
         if hasattr(result.status, "name"):
             name = result.status.name.upper()
-            if name == "SUCCESS":
-                return "done"
-            elif name == "FAILED":
-                return "error"
-            elif name == "SKIPPED":
-                return "skipped"
-            elif name == "RETRY":
+            if name == "RETRY":
                 return self._handle_retry_status(task, result)
-        return final_status
+            return _STATUS_MAP.get(name, "done")
+        return "done"
 
     def _execute_task_lifecycle(self, task: "Task") -> None:
-        import types
 
         # Update State -> Active
         self.context["__task_id__"] = task.id
@@ -596,55 +593,92 @@ class Engine:
     def _validate_exports_security(self, exports: Dict[str, Any]) -> None:
         import re
 
-        # 1. JSON Strictness & NaN / Infinity (T6.06)
         try:
             payload = json.dumps(exports, allow_nan=False)
-            # T7.01 The OOM Defense (String Size Limit)
             if len(payload) > 500 * 1024:
                 from flow.domain.models import PayloadTooLargeError
-
                 raise PayloadTooLargeError(
                     "OOM Defense (T7.01): Exports size limit exceeded"
                 )
         except (TypeError, OverflowError, ValueError) as e:
             raise RuntimeError(f"Atom returned non-serializable exports: {e}")
 
-        # 2. Escape Sequence Poisoning (T6.08)
-        # json.dumps escapes \x1b as \u001b or \\x1b depending on literal input
         if re.search(r"(\\u001b|\x1b|\\\\x1b)\[", payload):
             raise ValueError("ANSI_Escape_Sequence_Detected")
 
-        # 3. Massively Nested (T6.07) & Strict Types (T6.11-T6.15)
-        def validate_node(obj: Any, depth: int = 0) -> None:
-            if depth > 500:
-                raise ValueError("Max_Nesting_Exceeded")
+        self._validate_export_node(exports)
 
-            # T6.15: Strict MRO Injection Prevention (reject subclassing)
-            if type(obj) is dict:
-                for k, v in obj.items():
-                    if not isinstance(k, str):
-                        raise TypeError(
-                            "Export dict keys must be strict strings (T6.11)"
-                        )
-                    # T6.12 & T6.13: Dunder Key & Reserved Key Poisoning
-                    if k.startswith("__") or k in ["run_id", "status"]:
-                        raise ValueError(
-                            f"Reserved or Dunder key injection restricted: {k}"
-                        )
-                    validate_node(v, depth + 1)
+    def _validate_export_node(self, obj: Any, depth: int = 0) -> None:
+        """Recursively validate nesting, types, and reserved keys."""
+        if depth > 500:
+            raise ValueError("Max_Nesting_Exceeded")
 
-            elif type(obj) is list:
-                for v in obj:
-                    validate_node(v, depth + 1)
-            elif type(obj) in (int, float, str, bool, type(None)):
-                pass  # Safe primitives
-            else:
-                # T6.14 & T6.15: Reject tuples, sets, CustomDict subclasses, etc.
-                raise TypeError(
-                    f"Strict validation requires exact types, rejected: {type(obj)}"
-                )
+        if type(obj) is dict:
+            for k, v in obj.items():
+                if not isinstance(k, str):
+                    raise TypeError(
+                        "Export dict keys must be strict strings (T6.11)"
+                    )
+                if k.startswith("__") or k in ["run_id", "status"]:
+                    raise ValueError(
+                        f"Reserved or Dunder key injection restricted: {k}"
+                    )
+                self._validate_export_node(v, depth + 1)
+        elif type(obj) is list:
+            for v in obj:
+                self._validate_export_node(v, depth + 1)
+        elif type(obj) in (int, float, str, bool, type(None)):
+            pass
+        else:
+            raise TypeError(
+                f"Strict validation requires exact types, rejected: {type(obj)}"
+            )
 
-        validate_node(exports)
+    def _check_stale_lock(self, lock_file: Path, lock_data: dict) -> None:
+        """Check if existing lock is stale. Removes it if > 30s old, otherwise raises."""
+        probe_file = lock_file.with_name("time.probe")
+        try:
+            probe_file.touch()
+            current_fs_time = probe_file.stat().st_mtime
+            probe_file.unlink()
+        except OSError:
+            current_fs_time = time.time()
+
+        lock_fs_time = lock_file.stat().st_mtime
+        if current_fs_time - lock_fs_time > 30:
+            try:
+                lock_file.unlink()
+            except FileNotFoundError:
+                pass
+        else:
+            raise RuntimeError(
+                f"Engine Locked by {lock_data.get('task_id')}"
+            )
+
+    def _check_existing_lock(self, lock_file: Path, task_id: str) -> int:
+        """Handle existing lock file. Returns retry_count."""
+        try:
+            content = lock_file.read_text(encoding="utf-8")
+            if not content:
+                return 0
+            lock_data = json.loads(content)
+
+            if lock_data.get("pid") == os.getpid():
+                return -1  # sentinel: we own this lock, skip
+
+            if lock_data.get("task_id") == task_id:
+                retry_count = lock_data.get("retry_count", 0) + 1
+                if retry_count > 3:
+                    from flow.engine.models import CircuitBreakerError
+                    raise CircuitBreakerError(
+                        f"Task {task_id} failed {retry_count} times. Giving up."
+                    )
+                return retry_count
+
+            self._check_stale_lock(lock_file, lock_data)
+        except (json.JSONDecodeError, OSError):
+            pass  # Corrupt lock - Steal it
+        return 0
 
     def _acquire_intent_lock(self, task_id: str):
         flow_dir = self.flow_dir
@@ -655,59 +689,10 @@ class Engine:
         retry_count = 0
 
         if lock_file.exists():
-            try:
-                content = lock_file.read_text(encoding="utf-8")
-                if content:
-                    lock_data = json.loads(content)
+            retry_count = self._check_existing_lock(lock_file, task_id)
+            if retry_count == -1:
+                return  # We already own the lock
 
-                    # 1. Check PID Ownership (Recursion/Re-entry)
-                    if lock_data.get("pid") == os.getpid():
-                        return
-
-                    # 2. Check WAL Recovery (Same Task, Crashed)
-                    # If task_id matches, we assume we are retrying a crashed
-                    if lock_data.get("task_id") == task_id:
-                        retry_count = lock_data.get("retry_count", 0) + 1
-
-                        # T3.02 Circuit Breaker
-                        if retry_count > 3:
-                            from flow.engine.models import CircuitBreakerError
-
-                            raise CircuitBreakerError(
-                                f"Task {task_id} failed {retry_count} times. "
-                                f"Giving up."
-                            )
-
-                    else:
-                        # 3. Check Stale Lock (Zombie Stealing T3.11)
-                        # T3.06 NTP Clock Skew Defense via Filesystem Time Anchor
-                        # Use a probe to get the true current filesystem time
-                        probe_file = lock_file.with_name("time.probe")
-                        try:
-                            probe_file.touch()
-                            current_fs_time = probe_file.stat().st_mtime
-                            probe_file.unlink()
-                        except OSError:
-                            current_fs_time = time.time()
-
-                        lock_fs_time = lock_file.stat().st_mtime
-
-                        if (
-                            current_fs_time - lock_fs_time > 30
-                        ):  # 30s timeout based on FS time
-                            try:
-                                lock_file.unlink()
-                            except FileNotFoundError:
-                                pass
-                        else:
-                            raise RuntimeError(
-                                f"Engine Locked by {lock_data.get('task_id')}"
-                            )
-            except (json.JSONDecodeError, OSError):
-                # Corrupt lock - Steal it
-                pass
-
-        # Write Lock (Update or Create)
         lock_data = {
             "pid": os.getpid(),
             "timestamp": time.time(),

@@ -6,23 +6,17 @@ Tests the real GeminiProvider adapter against the full contract test suite
 All SDK calls are mocked — these tests exercise the adapter code, not the API.
 """
 
-import os
-from typing import Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from flow.llm.errors import (
     LLMAuthError,
-    LLMConnectionError,
-    LLMGenerationError,
-    LLMRateLimitError,
     MissingDependencyError,
     ProviderAlreadyConfiguredError,
     ProviderConfigError,
     ProviderNotConfiguredError,
 )
-from flow.llm.provider import LLMProvider
 
 # Only import if the SDK is available
 try:
@@ -220,7 +214,7 @@ class TestGeminiSpecific:
         """Missing GOOGLE_API_KEY -> LLMAuthError."""
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
         p = GeminiProvider()
-        with patch("flow.llm.adapters.gemini_adapter.genai") as mock_genai:
+        with patch("flow.llm.adapters.gemini_adapter.genai") as mock_genai:  # noqa: F841
             with pytest.raises(LLMAuthError, match="GOOGLE_API_KEY"):
                 p.configure({"model": "m", "auth": {"method": "api_key"}})
 
@@ -228,7 +222,7 @@ class TestGeminiSpecific:
         """Empty GOOGLE_API_KEY -> LLMAuthError."""
         monkeypatch.setenv("GOOGLE_API_KEY", "")
         p = GeminiProvider()
-        with patch("flow.llm.adapters.gemini_adapter.genai") as mock_genai:
+        with patch("flow.llm.adapters.gemini_adapter.genai") as mock_genai:  # noqa: F841
             with pytest.raises(LLMAuthError):
                 p.configure({"model": "m", "auth": {"method": "api_key"}})
 
@@ -284,7 +278,7 @@ class TestGeminiSpecific:
         """Unknown auth method -> ProviderConfigError."""
         monkeypatch.setenv("GOOGLE_API_KEY", "key")
         p = GeminiProvider()
-        with patch("flow.llm.adapters.gemini_adapter.genai") as mock_genai:
+        with patch("flow.llm.adapters.gemini_adapter.genai") as mock_genai:  # noqa: F841
             with pytest.raises(ProviderConfigError, match="Unknown auth"):
                 p.configure({"model": "m", "auth": {"method": "oauth2_custom"}})
 

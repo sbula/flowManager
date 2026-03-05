@@ -6,17 +6,13 @@ Tests the strict state machine:
 Covers T3.1.01-T3.1.06, T3.2.01-T3.2.11, T3.3.01-T3.3.05.
 """
 
-import os
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 from flow.llm.errors import (
     LLMAuthError,
-    LLMGenerationError,
     MissingDependencyError,
     ProviderAlreadyConfiguredError,
-    ProviderConfigError,
     ProviderNotConfiguredError,
 )
 

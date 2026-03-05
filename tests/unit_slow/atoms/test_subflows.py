@@ -14,7 +14,6 @@ from types import MappingProxyType
 
 import pytest
 
-from flow.atoms.base import AtomResult, AtomStatus
 from flow.domain.models import (
     ConfigVersionMismatchError,
     SchemaCollisionError,
@@ -70,7 +69,7 @@ class TestSubFlowInitialization:
 
         with pytest.raises(RecursionError, match="FATAL_LOOP"):
             for depth in range(20):
-                engine.launch_subflow(f"flow-{depth}", f"flow-{depth-1}", depth)
+                engine.launch_subflow(f"flow-{depth}", f"flow-{depth - 1}", depth)
 
     def test_t5_1_02_cross_subflow_variable_type_shadowing(self):
         """T5.1.02: Parent 'targets' is array, child 'targets' is string → error."""
@@ -80,7 +79,7 @@ class TestSubFlowInitialization:
         # Strict merge validation
         for key in child_context:
             if key in parent_context:
-                if type(parent_context[key]) != type(child_context[key]):
+                if not isinstance(child_context[key], type(parent_context[key])):
                     with pytest.raises(TypeError):
                         raise TypeError(
                             f"Type shadow: '{key}' is {type(parent_context[key]).__name__} "
@@ -265,7 +264,7 @@ class TestDeepHydration:
             # Simulate A→B→A→B→... cycle
             for i in range(10):
                 flow = "A" if i % 2 == 0 else "B"
-                engine.launch_subflow(f"{flow}-{i}", f"{flow}-{i-1}", depth=i)
+                engine.launch_subflow(f"{flow}-{i}", f"{flow}-{i - 1}", depth=i)
 
     def test_t5_2_12_unserializable_child_context_on_restart(self):
         """T5.2.12: Unserializable object in child context → fail and rollback."""

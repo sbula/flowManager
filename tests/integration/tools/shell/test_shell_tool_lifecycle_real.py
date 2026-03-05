@@ -2,7 +2,6 @@ import os
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 import pytest
 
@@ -19,7 +18,7 @@ from flow.tools.base import ToolContext
 
 def main():
     print(f"Parent PID: {os.getpid()}", flush=True)
-    
+
     # 1. Setup Tool
     tool = ShellTool()
     context = ToolContext(
@@ -30,46 +29,47 @@ def main():
         volume_id="vol-test",
         role="dev"
     )
-    
+
     # 2. Run Child Process via Tool
     # We use a long-running command.
     # On Windows/Linux, python is safe.
     child_script = sys.argv[1]
-    
+
     print("Starting child...", flush=True)
     # This runs synchronously, so we can't use it directly if we want to run in parallel?
     # Wait, ShellTool.run *blocks* until completion.
     # IF we want to test "Kill Parent while Child Running", we need the tool to be running.
     # So the Parent Script is effectively "Running the Tool".
     # The Tool runs the Child.
-    
+
     try:
         tool.run({
             "operation": "run_command", # or run_test, assuming we mapped it
             # actually we mapped run_command to DEPRECATED in spec, but for valid ops...
-            # The spec says "run_test" or "install_dependencies". 
+            # The spec says "run_test" or "install_dependencies".
             # Let's use "run_test" which calls run_command internally.
-            # But run_test invokes pytest. 
+            # But run_test invokes pytest.
             # We need a way to run an arbitrary script.
-            # ShellTool has no generic "run_script" for Devs? 
+            # ShellTool has no generic "run_script" for Devs?
             # SystemTool has system_ctl.
             # Wait, ShellTool has "run_lint" -> "flake8".
             # If we strictly follow spec, we can't run arbitrary python?
             # T1.09 says "run_command deprecated".
-            
-            # HACK: For this integration test, we might need to bypass the "Allow List" 
+
+            # HACK: For this integration test, we might need to bypass the "Allow List"
             # or rely on the Fact that we are testing the *Supervisor*, not the *Allow List*.
-            # Let's assume we can modify the tool or use a backdoor or just use 'install_dependencies' with a custom command?
+            # Let's assume we can modify the tool or use a backdoor
+            # or just use 'install_dependencies' with a custom command?
             # 'install_dependencies' -> 'npm ci' or 'poetry install'.
             # That's hard to control duration.
-            
-            # Let's look at ShellTool impl. 
+
+            # Let's look at ShellTool impl.
             # If we are testing src.flow.tools.shell, we can import it and invoke _run_command directly?
             # No, we want to test IT as a unit.
-            
+
             # Let's use `create_directory`? No process.
             # What spawns a process? `git_checkout`, `git_commit`, `run_test`, `install_dependencies`.
-            # `run_test` runs `pytest`. 
+            # `run_test` runs `pytest`.
             # If we create a dummy `pytest.ini` or `conftest.py` that sleeps?
             # Yes! `pytest` collects tests. If we have a test that sleeps 100s.
             "operation": "run_test",
@@ -90,11 +90,11 @@ def test_sleep_forever():
     print(f"Child Test PID: {os.getpid()}", flush=True)
     with open("child.pid", "w") as f:
         f.write(str(os.getpid()))
-    
+
     # Write heartbeat
     with open("heartbeat.txt", "w") as f:
         f.write("alive")
-        
+
     time.sleep(60) # Sleep long enough to be killed
 """
 
@@ -180,7 +180,7 @@ def test_fate_sharing_real(tmp_path):
         try:
             p = psutil.Process(child_pid)
             print(f"Child Status: {p.status()}", file=sys.stderr)
-        except:
+        except Exception:
             pass
 
     assert (

@@ -106,7 +106,6 @@ class LockManager:
             kernel32 = ctypes.windll.kernel32
             SYNCHRONIZE = 0x00100000
             PROCESS_QUERY_INFORMATION = 0x0400
-            wait_result = 0
 
             # OpenProcess returns 0 on failure
             process = kernel32.OpenProcess(

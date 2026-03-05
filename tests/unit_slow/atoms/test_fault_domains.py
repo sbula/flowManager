@@ -10,7 +10,6 @@ Tests the Engine's fault isolation wrapper and graceful teardown contract.
 import threading
 import time
 
-import pytest
 
 from flow.atoms.base import AtomResult, AtomStatus, RetryStrategy
 
@@ -312,14 +311,12 @@ class TestDoubleFault:
     def test_t8_17_pure_double_fault(self):
         """T8.17 edge: Both run() and error serializer crash → hardcoded FAILED_CRITICAL."""
         # Simulate a scenario where json.dumps fails on the error object
-        import json
-        from unittest.mock import patch
 
         atom = CrashingAtom(exception=KeyError("original"))
         wrapper = EngineWrapper(atom)
 
-        # Patch json.dumps to fail during error serialization  
-        original_execute = wrapper.execute
+        # Patch json.dumps to fail during error serialization
+        original_execute = wrapper.execute  # noqa: F841
 
         def patched_execute(context):
             try:

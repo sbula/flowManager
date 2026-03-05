@@ -81,7 +81,7 @@ def test_t1_04_deep_nesting(flow_env):
         else:
             assert len(current.children) == 1
             current = current.children[0]
-            assert current.name == f"Level {i+1}"
+            assert current.name == f"Level {i + 1}"
 
 
 def test_t1_05_mixed_markers(flow_env):

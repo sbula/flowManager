@@ -355,8 +355,6 @@ def test_t8_09_sigquit(tmp_path):
     engine.persister.save(tree)
 
     import multiprocessing
-    import os
-    import signal
     import time
 
     # Use multiprocessing to run the engine, then kill it
@@ -395,7 +393,6 @@ def test_t8_09_sigquit(tmp_path):
 def test_t8_10_network_socket_hang_in_cleanup(tmp_path):
     """T8.10 Network Socket Hang in Cleanup."""
     # Architecturally effectively identical to T8.04/T8.13. So we test it specifically with a socket block.
-    import socket
     import time
 
     engine, _ = init_engine(tmp_path)

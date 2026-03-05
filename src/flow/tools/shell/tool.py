@@ -42,66 +42,61 @@ class ShellTool(Tool):
         operation = args.get("operation")
 
         try:
-            if operation == "install_dependencies":
-                return self._install_dependencies(args.get("manager"), context)
-            elif operation == "git_checkout":
-                return self._git_checkout(
-                    args.get("branch"), args.get("create_if_missing", False), context
-                )
-            elif operation == "git_push":
-                return self._git_push(
-                    args.get("remote", "origin"), args.get("branch"), context
-                )
-            elif operation == "git_status":
-                return self._run_git(["status"], context)
-            elif operation == "git_diff":
-                cmd = ["diff"]
-                if args.get("staged"):
-                    cmd.append("--staged")
-                return self._run_git(cmd, context)
-            elif operation == "git_add":
-                files = args.get("files", [])
-                if not files:
-                    return ToolResult(
-                        status="error",
-                        error={
-                            "code": "ValidationError",
-                            "message": "No files specified",
-                        },
-                    )
-                return self._run_git(["add"] + files, context)
-            elif operation == "git_commit":
-                msg = args.get("message")
-                if not msg:
-                    return ToolResult(
-                        status="error",
-                        error={
-                            "code": "ValidationError",
-                            "message": "Commit message required",
-                        },
-                    )
-                return self._run_git(["commit", "-m", msg], context)
-            elif operation == "run_test":
-                return self._run_test(
-                    args.get("target"), args.get("truncation_strategy"), context
-                )
-            elif operation == "run_lint":
-                return self._run_lint(args.get("target"), context)
-            else:
-                return ToolResult(
-                    status="error",
-                    error={
-                        "code": "UnknownOperation",
-                        "message": f"Unknown operation: {operation}",
-                    },
-                )
-
+            return self._dispatch_operation(operation, args, context)
         except ToolError as e:
             return ToolResult(status="error", error={"code": e.code, "message": str(e)})
         except Exception as e:
             return ToolResult(
                 status="error", error={"code": "InternalError", "message": str(e)}
             )
+
+    def _dispatch_operation(
+        self, operation: Optional[str], args: Dict[str, Any], context: ToolContext
+    ) -> ToolResult:
+        _OPS = {
+            "install_dependencies": lambda: self._install_dependencies(args.get("manager"), context),
+            "git_checkout": lambda: self._git_checkout(
+                args.get("branch"), args.get("create_if_missing", False), context
+            ),
+            "git_push": lambda: self._git_push(
+                args.get("remote", "origin"), args.get("branch"), context
+            ),
+            "git_status": lambda: self._run_git(["status"], context),
+            "git_diff": lambda: self._run_git(
+                ["diff"] + (["--staged"] if args.get("staged") else []), context
+            ),
+            "git_add": lambda: self._handle_git_add(args, context),
+            "git_commit": lambda: self._handle_git_commit(args, context),
+            "run_test": lambda: self._run_test(
+                args.get("target"), args.get("truncation_strategy"), context
+            ),
+            "run_lint": lambda: self._run_lint(args.get("target"), context),
+        }
+        handler = _OPS.get(operation)
+        if handler:
+            return handler()
+        return ToolResult(
+            status="error",
+            error={"code": "UnknownOperation", "message": f"Unknown operation: {operation}"},
+        )
+
+    def _handle_git_add(self, args: Dict[str, Any], context: ToolContext) -> ToolResult:
+        files = args.get("files", [])
+        if not files:
+            return ToolResult(
+                status="error",
+                error={"code": "ValidationError", "message": "No files specified"},
+            )
+        return self._run_git(["add"] + files, context)
+
+    def _handle_git_commit(self, args: Dict[str, Any], context: ToolContext) -> ToolResult:
+        msg = args.get("message")
+        if not msg:
+            return ToolResult(
+                status="error",
+                error={"code": "ValidationError", "message": "Commit message required"},
+            )
+        return self._run_git(["commit", "-m", msg], context)
 
     def _install_dependencies(
         self, manager: Optional[str], context: ToolContext
@@ -262,8 +257,41 @@ class ShellTool(Tool):
                 t_err.join(timeout=1)
                 break
 
+    def _build_run_result(
+        self, process, stdout_buffer, stderr_buffer, state
+    ) -> ToolResult:
+        """Build ToolResult from completed subprocess."""
+        stdout_str = "".join(stdout_buffer)
+        stderr_str = "".join(stderr_buffer)
+
+        if state["limit_exceeded"]:
+            return ToolResult(
+                status="error",
+                error={
+                    "code": "OutputLimitExceeded",
+                    "message": (
+                        f"Output exceeded {self.MAX_BUFFER_SIZE}"
+                        " bytes. Process terminated."
+                    ),
+                    "details": {"stdout": stdout_str, "stderr": stderr_str},
+                },
+            )
+
+        if process.returncode != 0:
+            return ToolResult(
+                status="error",
+                error={
+                    "code": "CommandFailed",
+                    "message": f"Command failed: {process.returncode}",
+                    "details": {"stdout": stdout_str, "stderr": stderr_str},
+                },
+            )
+
+        return ToolResult(
+            status="success", data={"stdout": stdout_str, "stderr": stderr_str}
+        )
+
     def _run_command(self, cmd: List[str], context: ToolContext) -> ToolResult:
-        # Advanced subprocess wrapper with Job Object and Stream Buffering
         import os
         import threading
 
@@ -271,7 +299,6 @@ class ShellTool(Tool):
         if os.name == "nt":
             try:
                 from .win32_job import WindowsJobObject
-
                 job = WindowsJobObject()
             except (ImportError, Exception):
                 pass
@@ -282,75 +309,41 @@ class ShellTool(Tool):
         state = {"out_size": 0, "err_size": 0, "limit_exceeded": False}
 
         try:
-            cwd = context.service_root
-
-            # Start process
             process = subprocess.Popen(
                 cmd,
-                cwd=cwd,
+                cwd=context.service_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
-                errors="replace",  # Prevent decoding crashes
+                errors="replace",
             )
 
-            # Assign to Job Object immediately
             if job:
                 job.assign_process(int(process._handle))  # type: ignore
 
-            # Start Reader Threads
             t_out = threading.Thread(
                 target=self._read_output_stream,
                 args=(process.stdout, stdout_buffer, state, True),
+                daemon=True,
             )
             t_err = threading.Thread(
                 target=self._read_output_stream,
                 args=(process.stderr, stderr_buffer, state, False),
+                daemon=True,
             )
             t_out.start()
             t_err.start()
 
             import time
-
             start_time = time.time()
             timeout = 300
 
             self._wait_for_process(process, t_out, t_err, timeout, start_time, state)
-
-            # Ensure threads join
             t_out.join(timeout=1)
             t_err.join(timeout=1)
 
-            stdout_str = "".join(stdout_buffer)
-            stderr_str = "".join(stderr_buffer)
-
-            if state["limit_exceeded"]:
-                return ToolResult(
-                    status="error",
-                    error={
-                        "code": "OutputLimitExceeded",
-                        "message": (
-                            f"Output exceeded {self.MAX_BUFFER_SIZE}"
-                            " bytes. Process terminated."
-                        ),
-                        "details": {"stdout": stdout_str, "stderr": stderr_str},
-                    },
-                )
-
-            if process.returncode != 0:
-                return ToolResult(
-                    status="error",
-                    error={
-                        "code": "CommandFailed",
-                        "message": f"Command failed: {process.returncode}",
-                        "details": {"stdout": stdout_str, "stderr": stderr_str},
-                    },
-                )
-
-            return ToolResult(
-                status="success", data={"stdout": stdout_str, "stderr": stderr_str}
-            )
+            return self._build_run_result(process, stdout_buffer, stderr_buffer, state)
 
         except subprocess.TimeoutExpired as e:
             return ToolResult(
@@ -358,21 +351,16 @@ class ShellTool(Tool):
                 error={
                     "code": "Timeout",
                     "message": f"Command timed out after {e.timeout}s",
-                    # Grab whatever we have so far
                     "details": {"cmd": e.cmd, "stdout": "".join(stdout_buffer)},
                 },
             )
         except Exception as e:
             return ToolResult(
                 status="error",
-                error={
-                    "code": "InternalError",
-                    "message": f"Execution failed: {str(e)}",
-                },
+                error={"code": "InternalError", "message": f"Execution failed: {str(e)}"},
             )
         finally:
             if job:
                 job.close()
             if process and process.poll() is None:
-                # Ensure cleanup if we exited via exception
                 process.kill()

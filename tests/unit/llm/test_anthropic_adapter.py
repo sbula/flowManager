@@ -6,23 +6,17 @@ Tests the real AnthropicProvider adapter against the full contract test suite
 All SDK calls are mocked — these tests exercise the adapter code, not the API.
 """
 
-import os
-from typing import Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from flow.llm.errors import (
     LLMAuthError,
-    LLMConnectionError,
-    LLMGenerationError,
-    LLMRateLimitError,
     MissingDependencyError,
     ProviderAlreadyConfiguredError,
     ProviderConfigError,
     ProviderNotConfiguredError,
 )
-from flow.llm.provider import LLMProvider
 
 # Only import if the SDK is available
 try:

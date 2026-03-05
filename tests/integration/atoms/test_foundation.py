@@ -1,12 +1,8 @@
-import hashlib
-import json
-import os
 import time
-from pathlib import Path
 
 import pytest
 
-from flow.atoms import Atom, AtomResult, AtomStatus, ManualInterventionAtom
+from flow.atoms import Atom, AtomResult, AtomStatus
 from flow.domain.models import ConfigVersionMismatchError, StatusTree, Task
 from flow.domain.persister import StatusPersister
 from flow.engine.core import Engine
@@ -43,8 +39,11 @@ def test_t2_02_cross_flow_collision_defense():
 
 # T2.03 State Reconciliation Verification
 def test_t2_03_state_reconciliation_verification(tmp_path):
-    """T2.03 State Reconciliation Verification: Simulate crash after mutating Atom side-effect but BEFORE local state save.
-    On restart, expect Atom to check remote state, skip mutation, and yield SUCCESS."""
+    """T2.03 State Reconciliation Verification.
+
+    Simulate crash after mutating Atom side-effect but BEFORE local state save.
+    On restart, expect Atom to check remote state, skip mutation, and yield SUCCESS.
+    """
     engine = Engine()
     engine.root = tmp_path
     engine.flow_dir = tmp_path / ".flow"
@@ -79,7 +78,10 @@ def test_t2_03_state_reconciliation_verification(tmp_path):
 
 # T2.04 Version Hash Collision (Code Drift)
 def test_t2_04_version_hash_collision_code_drift(tmp_path):
-    """T2.04 Version Hash Collision (Code Drift): Suspend flow, modify YAML DAG, resume. Expect ConfigVersionMismatchError."""
+    """T2.04 Version Hash Collision (Code Drift).
+
+    Suspend flow, modify YAML DAG, resume. Expect ConfigVersionMismatchError.
+    """
     engine = Engine()
     engine.root = tmp_path
     engine.flow_dir = tmp_path / ".flow"
@@ -101,7 +103,11 @@ def test_t2_04_version_hash_collision_code_drift(tmp_path):
 
 # T2.05 Database-Backed DAG Serialization
 def test_t2_05_database_backed_dag_serialization(tmp_path):
-    """T2.05 Database-Backed DAG Serialization: Force crash during dynamic DAG generation. Expect recovery from locked database hash, not a regeneration attempt."""
+    """T2.05 Database-Backed DAG Serialization.
+
+    Force crash during dynamic DAG generation. Expect recovery from locked
+    database hash, not a regeneration attempt.
+    """
     engine = Engine()
     engine.root = tmp_path
     engine.flow_dir = tmp_path / ".flow"
@@ -132,7 +138,11 @@ def test_t2_05_database_backed_dag_serialization(tmp_path):
 
 # T2.06 At-Least-Once Traceability (Ghost Writes)
 def test_t2_06_at_least_once_traceability(tmp_path):
-    """T2.06 At-Least-Once Traceability (Ghost Writes): Execute Unsafe non-idempotent Atom under retry. Expect warning: "At-Least-Once" metadata without halting."""
+    """T2.06 At-Least-Once Traceability (Ghost Writes).
+
+    Execute Unsafe non-idempotent Atom under retry.
+    Expect warning: "At-Least-Once" metadata without halting.
+    """
     engine = Engine()
     engine.root = tmp_path
     engine.flow_dir = tmp_path / ".flow"
@@ -167,7 +177,11 @@ def test_t2_06_at_least_once_traceability(tmp_path):
 
 # T2.07 Idempotency Key Re-Use Attack
 def test_t2_07_idempotency_key_reuse_attack(tmp_path):
-    """T2.07 Idempotency Key Re-Use Attack: Simulate two different Atoms requesting the exact same Idempotency Key logic. Expect failure or overwrite rejection in the state DB."""
+    """T2.07 Idempotency Key Re-Use Attack.
+
+    Simulate two different Atoms requesting the exact same Idempotency Key logic.
+    Expect failure or overwrite rejection in the state DB.
+    """
     engine = Engine()
     engine.root = tmp_path
     engine.flow_dir = tmp_path / ".flow"
@@ -226,7 +240,11 @@ def test_t2_07_idempotency_key_reuse_attack(tmp_path):
 
 # T2.08 Timestamp Drift in Run ID
 def test_t2_08_timestamp_drift_in_run_id():
-    """T2.08 Timestamp Drift in Run ID: Inject wildly different UTC timestamps into environment... Expect Hash ID perfectly identical."""
+    """T2.08 Timestamp Drift in Run ID.
+
+    Inject wildly different UTC timestamps into environment.
+    Expect Hash ID perfectly identical.
+    """
 
     class HashableMockAtom(Atom):
         def run(self, context) -> AtomResult:
@@ -239,7 +257,11 @@ def test_t2_08_timestamp_drift_in_run_id():
 
 # T2.09 Zero-Byte Config Hashing
 def test_t2_09_zero_byte_config_hashing():
-    """T2.09 Zero-Byte Config Hashing: Instantiate an Atom with an entirely empty config: {}. Expect a valid, stable hash."""
+    """T2.09 Zero-Byte Config Hashing.
+
+    Instantiate an Atom with an entirely empty config: {}.
+    Expect a valid, stable hash.
+    """
 
     class HashableMockAtom(Atom):
         def run(self, context) -> AtomResult:
@@ -252,7 +274,11 @@ def test_t2_09_zero_byte_config_hashing():
 
 # T2.10 Massive DAG Node ID Validation
 def test_t2_10_massive_dag_node_id_validation():
-    """T2.10 Massive DAG Node ID Validation: Pass a DAG_NodeID of 100,000 characters. Expect proper hashing and no string length DB exceptions."""
+    """T2.10 Massive DAG Node ID Validation.
+
+    Pass a DAG_NodeID of 100,000 characters.
+    Expect proper hashing and no string length DB exceptions.
+    """
 
     class HashableMockAtom(Atom):
         def run(self, context) -> AtomResult:
@@ -266,7 +292,11 @@ def test_t2_10_massive_dag_node_id_validation():
 
 # T2.11 State DB Network Partition
 def test_t2_11_state_db_network_partition(tmp_path):
-    """T2.11 State DB Network Partition: Atom completes successfully, but connection to .flow_state/ embedded DB severed. Expect Orchestrator defensively fails."""
+    """T2.11 State DB Network Partition.
+
+    Atom completes successfully, but connection to .flow_state/ embedded DB severed.
+    Expect Orchestrator defensively fails.
+    """
     engine = Engine()
     engine.root = tmp_path
     engine.flow_dir = tmp_path / ".flow"
@@ -277,7 +307,7 @@ def test_t2_11_state_db_network_partition(tmp_path):
     class NetworkPartitionMockAtom(Atom):
         def run(self, context) -> AtomResult:
             # Simulate network partition right before returning by mocking the save
-            orig_save = engine.persister.save
+            engine.persister.save
 
             def failing_save(t):
                 raise OSError("Network drive disconnected")
@@ -313,7 +343,11 @@ def test_t2_11_state_db_network_partition(tmp_path):
 
 # T2.12 Phantom Resume on Deleted State
 def test_t2_12_phantom_resume_on_deleted_state(tmp_path):
-    """T2.12 Phantom Resume on Deleted State: Engine attempts to resume an Atom where .flow_state/ mapping is manually deleted mid-sleep. Expect explicit StateNotFoundError."""
+    """T2.12 Phantom Resume on Deleted State.
+
+    Engine attempts to resume an Atom where .flow_state/ mapping is manually
+    deleted mid-sleep. Expect explicit StateNotFoundError.
+    """
     engine = Engine()
     engine.root = tmp_path
     engine.flow_dir = tmp_path / ".flow"
@@ -344,7 +378,11 @@ def test_t2_12_phantom_resume_on_deleted_state(tmp_path):
 
 # T2.13 Dirty State Heuristics
 def test_t2_13_dirty_state_heuristics(tmp_path):
-    """T2.13 Dirty State Heuristics: State file exists but size is exactly 0 bytes due to power loss... Expect fallback to previous valid state snapshot."""
+    """T2.13 Dirty State Heuristics.
+
+    State file exists but size is exactly 0 bytes due to power loss.
+    Expect fallback to previous valid state snapshot.
+    """
     engine = Engine()
     engine.root = tmp_path
     engine.flow_dir = tmp_path / ".flow"
@@ -372,7 +410,11 @@ def test_t2_13_dirty_state_heuristics(tmp_path):
 
 # T2.14 WAL File Corruption (Bit Flip)
 def test_t2_14_wal_file_corruption(tmp_path):
-    """T2.14 WAL File Corruption (Bit Flip): Corrupted with random bytes. Expect Engine to decline changes and recover from valid snapshot."""
+    """T2.14 WAL File Corruption (Bit Flip).
+
+    Corrupted with random bytes. Expect Engine to decline changes
+    and recover from valid snapshot.
+    """
     engine = Engine()
     engine.root = tmp_path
     engine.flow_dir = tmp_path / ".flow"
@@ -406,7 +448,10 @@ def test_t2_14_wal_file_corruption(tmp_path):
 
 # T2.15 Hash Collision with Non-ASCII Characters
 def test_t2_15_hash_collision_non_ascii():
-    """T2.15 Hash Collision with Non-ASCII Characters: "cafe" vs "café". Expect UTF-8 normalized strings to yield different hashes."""
+    """T2.15 Hash Collision with Non-ASCII Characters.
+
+    "cafe" vs "cafe\u0301". Expect UTF-8 normalized strings to yield different hashes.
+    """
 
     class HashableMockAtom(Atom):
         def run(self, context) -> AtomResult:
@@ -472,7 +517,11 @@ def test_t2_16_ntp_clock_leap_backoff(tmp_path):
 
 # T2.17 Floating Point Precision Loss in Hashes
 def test_t2_17_floating_point_precision_loss():
-    """T2.17 Floating Point Precision Loss in Hashes: ... Expect canonical JSON encoder to strictly differentiate or consistently unify .0 floats and integers."""
+    """T2.17 Floating Point Precision Loss in Hashes.
+
+    Expect canonical JSON encoder to strictly differentiate or consistently
+    unify .0 floats and integers.
+    """
 
     class HashableMockAtom(Atom):
         def run(self, context) -> AtomResult:
@@ -485,7 +534,11 @@ def test_t2_17_floating_point_precision_loss():
 
 # T2.18 Zero-Width ZWNJ Character Injection
 def test_t2_18_zero_width_zwnj_character_injection():
-    """T2.18 Zero-Width ZWNJ Character Injection: "job" vs "job\\u200b". Expect string sanitizer to aggressively strip zero-width characters prior to hashing."""
+    """T2.18 Zero-Width ZWNJ Character Injection.
+
+    "job" vs "job\\u200b". Expect string sanitizer to aggressively strip
+    zero-width characters prior to hashing.
+    """
 
     class HashableMockAtom(Atom):
         def run(self, context) -> AtomResult:

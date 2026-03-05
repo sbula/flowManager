@@ -226,7 +226,8 @@ def test_t3_12_system_context_immutable(tmp_path):
     # Actually, if the engine doesn't protect it, it will change.
     # Let's see if we should fix the ENGINE or the TEST.
     # Let's just make the test assert what the engine does, or fix the engine.
-    # We will fix the engine to pass a deepcopy in a separate step if needed. For now, let's fix the test to expect success, but check the context.
+    # We will fix the engine to pass a deepcopy in a separate step
+    # if needed. For now, let's fix the test to expect success.
     # Wait, if the engine doesn't pass a copy, `engine.context["secure"]` WILL be "hacked".
     # Let's fix the Engine to pass a deepcopy of context to the Atom.
     assert engine.context["secure"] == "data"

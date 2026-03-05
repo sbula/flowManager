@@ -9,14 +9,10 @@ simulation with lightweight mocks.
 
 import threading
 import time
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from flow.atoms.base import AtomResult, AtomStatus, RetryStrategy
 from flow.domain.models import LostLockError
-
-from .conftest import MockAtom
 
 
 # ─── Lock Manager Simulation ──────────────────────────────────────
@@ -247,7 +243,6 @@ class TestLockEdgeCases:
         """T3.11: Lock acquired at 9.9s but step timeout is 10s → teardown."""
         STEP_TIMEOUT = 0.2  # 200ms for test speed
         lock_acquired_at = None
-        side_effect_fired = False
 
         lm = MockLockManager()
         start = time.monotonic()
@@ -262,7 +257,7 @@ class TestLockEdgeCases:
             # Timeout already exceeded — do NOT proceed
             lm.release("resource", "atom-1")
         else:
-            side_effect_fired = True
+            pass
 
         # Side effect may or may not fire depending on timing
         # But the key contract: if timeout exceeded, lock must be released

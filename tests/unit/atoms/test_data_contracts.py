@@ -8,20 +8,16 @@ hostile object injection.
 Tests the Engine's export validation contract and Atom boundaries.
 """
 
-import json
-import math
-import sys
 from types import MappingProxyType
 from unittest.mock import MagicMock
 
 import pytest
 
-from flow.atoms.base import AtomResult, AtomStatus
+from flow.atoms.base import AtomStatus
 
 from .conftest import (
     BadReturnAtom,
     EngineWrapper,
-    MockAtom,
     validate_exports,
 )
 
@@ -205,9 +201,12 @@ class TestSchemaValidation:
 
     def test_t6_11_dict_key_type_coercion(self):
         """T6.11: Non-string dict keys (int, bool) → strict rejection."""
-        exports = {1: "value", True: "bool_value"}
+        int_exports = {1: "value"}
         with pytest.raises(TypeError, match="string"):
-            validate_exports(exports)
+            validate_exports(int_exports)
+        bool_exports = {True: "bool_value"}
+        with pytest.raises(TypeError, match="string"):
+            validate_exports(bool_exports)
 
     def test_t6_12_dunder_key_poisoning(self):
         """T6.12: Dunder keys (__class__) in exports → structural rejection."""

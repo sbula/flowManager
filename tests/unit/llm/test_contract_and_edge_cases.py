@@ -7,13 +7,11 @@ Covers:
 - §13 Observability & Logging
 """
 
-import inspect
 import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Dict, List
-from unittest.mock import MagicMock, patch
+from typing import Dict
 
 import pytest
 
@@ -30,7 +28,6 @@ from flow.llm.provider import LLMProvider
 
 from .conftest import (
     MockProvider,
-    MockProviderNoEmbed,
     MockProviderValidateError,
     MockProviderValidateOverride,
 )
@@ -50,12 +47,10 @@ class AbstractProviderContractTest(ABC):
     @abstractmethod
     def get_provider(self) -> LLMProvider:
         """Return a fresh, unconfigured provider instance."""
-        pass
 
     @abstractmethod
     def get_valid_config(self) -> Dict:
         """Return a valid config dict for configure()."""
-        pass
 
     def test_ct_01_has_provider_name(self):
         """CT-01: provider_name is a non-empty string."""
@@ -188,7 +183,7 @@ class TestObservability:
         monkeypatch.setenv("MOCK_API_KEY", api_key)
 
         with caplog.at_level(logging.DEBUG):
-            result = configured_provider.generate([{"role": "user", "content": "test"}])
+            result = configured_provider.generate([{"role": "user", "content": "test"}])  # noqa: F841
 
         for record in caplog.records:
             assert api_key not in record.getMessage()

@@ -9,13 +9,12 @@ src/flow/atoms/agent.py.
 
 import json
 from pathlib import Path
-from types import MappingProxyType
 from unittest.mock import patch
 
 import pytest
 
 from flow.atoms.agent import AgentAtom
-from flow.atoms.base import AtomResult, AtomStatus
+from flow.atoms.base import AtomStatus
 from flow.domain.models import UnauthorizedSubflowError
 
 

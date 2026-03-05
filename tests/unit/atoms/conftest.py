@@ -8,14 +8,12 @@ in 01_05_atoms_spec.md and 01_05_atoms_test.md.
 import json
 import threading
 import time
-from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Dict, Optional
-from unittest.mock import MagicMock
 
 import pytest
 
-from flow.atoms.base import Atom, AtomConfig, AtomResult, AtomStatus, RetryStrategy
+from flow.atoms.base import Atom, AtomResult, AtomStatus, RetryStrategy
 
 
 # ─── Mock Atoms ─────────────────────────────────────────────────────
@@ -284,15 +282,23 @@ def _check_string_keys(obj, path="", _seen=None):
             _check_string_keys(item, f"{path}[{i}]", _seen)
 
 
-def _check_dunder_keys(obj, path="", _seen=None):
-    """Rejects dunder keys in exports."""
+def _track_seen(obj, _seen):
+    """Track obj by id if it's a dict/list. Returns True if already seen (cycle)."""
     if _seen is None:
         _seen = set()
     obj_id = id(obj)
     if isinstance(obj, (dict, list)) and obj_id in _seen:
-        return  # Cycle detected — handled by _check_serializable
+        return True, _seen
     if isinstance(obj, (dict, list)):
         _seen.add(obj_id)
+    return False, _seen
+
+
+def _check_dunder_keys(obj, path="", _seen=None):
+    """Rejects dunder keys in exports."""
+    is_cycle, _seen = _track_seen(obj, _seen)
+    if is_cycle:
+        return
     if isinstance(obj, dict):
         for k, v in obj.items():
             if isinstance(k, str) and k.startswith("__") and k.endswith("__"):
@@ -303,6 +309,23 @@ def _check_dunder_keys(obj, path="", _seen=None):
     elif isinstance(obj, (list, tuple)):
         for i, item in enumerate(obj):
             _check_dunder_keys(item, f"{path}[{i}]", _seen)
+
+
+def _check_float_value(obj):
+    """Raise ValueError if float is NaN or Infinity."""
+    import math
+    if math.isnan(obj) or math.isinf(obj):
+        raise ValueError(f"NaN/Infinity not allowed in exports: {obj}")
+
+
+def _check_non_native_type(obj):
+    """Raise TypeError for non-JSON-native types."""
+    if isinstance(obj, tuple):
+        raise TypeError("Tuple is not JSON-native; exports must use list instead")
+    if isinstance(obj, set):
+        raise TypeError("Set is not JSON-serializable; exports must use list instead")
+    if not isinstance(obj, (str, int, bool, type(None))):
+        raise TypeError(f"Non-serializable type '{type(obj).__name__}' in exports")
 
 
 def _check_serializable(obj, max_depth=100, _depth=0, _seen=None):
@@ -320,30 +343,15 @@ def _check_serializable(obj, max_depth=100, _depth=0, _seen=None):
         _seen.add(obj_id)
 
     if isinstance(obj, float):
-        import math
-        if math.isnan(obj) or math.isinf(obj):
-            raise ValueError(f"NaN/Infinity not allowed in exports: {obj}")
+        _check_float_value(obj)
     elif isinstance(obj, dict):
         for k, v in obj.items():
             _check_serializable(v, max_depth, _depth + 1, _seen)
     elif isinstance(obj, (list,)):
         for item in obj:
             _check_serializable(item, max_depth, _depth + 1, _seen)
-    elif isinstance(obj, tuple):
-        raise TypeError(
-            "Tuple is not JSON-native; exports must use list instead"
-        )
-    elif isinstance(obj, set):
-        raise TypeError(
-            "Set is not JSON-serializable; exports must use list instead"
-        )
-    elif isinstance(obj, (str, int, bool, type(None))):
-        pass  # JSON-native
-    else:
-        # Custom objects, file handles, etc.
-        raise TypeError(
-            f"Non-serializable type '{type(obj).__name__}' in exports"
-        )
+    elif not isinstance(obj, (str, int, bool, type(None))):
+        _check_non_native_type(obj)
 
     if isinstance(obj, (dict, list)):
         _seen.discard(obj_id)

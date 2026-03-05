@@ -18,13 +18,26 @@ class TransformAtom(Atom):
     def _parse_config(self, config: Dict[str, Any]) -> TransformAtomConfig:
         return TransformAtomConfig(**config)
 
+    def _resolve_dot_path(self, source_key: str, context: Dict[str, Any]) -> Any:
+        """Resolve dot-notation path (e.g. data.users.0.name) against context."""
+        from typing import cast
+        parts = source_key.split(".")
+        current = context
+        for part in parts:
+            if isinstance(current, dict):
+                current = cast(Any, current.get(part))
+            elif isinstance(current, list) and part.isdigit():
+                current = cast(Any, current[int(part)])
+            else:
+                raise KeyError(
+                    f"Cannot resolve path segment '{part}' in '{source_key}'"
+                )
+        return current
+
     def run(self, context: Dict[str, Any]) -> AtomResult:
         from typing import cast
 
         config = cast(TransformAtomConfig, self.config)
-        # The following line from the instruction is syntactically
-        # incorrect as 'resultconfig' is not defined
-        # and 'target_key' is used before assignment.
 
         source_key = config.source_key
         target_key = config.target_key
@@ -36,22 +49,9 @@ class TransformAtom(Atom):
             )
 
         if not transform_code:
-            # Very simple dot-notation resolver (e.g. data.users.0.name)
-            parts = source_key.split(".")
-            current = context
-
             try:
-                for part in parts:
-                    if isinstance(current, dict):
-                        current = cast(Any, current.get(part))
-                    elif isinstance(current, list) and part.isdigit():
-                        current = cast(Any, current[int(part)])
-                    else:
-                        raise KeyError(
-                            f"Cannot resolve path segment '{part}' in '{source_key}'"
-                        )
-
-                exp_dict: Dict[str, Any] = {target_key: current}
+                value = self._resolve_dot_path(source_key, context)
+                exp_dict: Dict[str, Any] = {target_key: value}
                 return AtomResult(
                     AtomStatus.SUCCESS,
                     f"Transformed {source_key} -> {target_key}",
