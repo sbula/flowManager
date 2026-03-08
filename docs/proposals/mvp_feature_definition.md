@@ -2,7 +2,7 @@
 
 > **Status**: PROPOSAL — Requires HITL approval before implementation.
 > **Date**: 2026-03-08
-> **Decisions**: Python for generated code ✅, L2 skipped ✅, Deployment isolation ✅, Per-layer rule config ✅
+> **Decisions**: Python for generated code ✅, L2 skipped ✅, Deployment isolation ✅, Per-layer rule config ✅, Typer CLI ✅, Gemini API ✅
 > **Related**:
 > - [Methodology Index](../architecture/methodology_index.md) — methodology framework
 > - [Lifecycle Layers](../architecture/lifecycle_layers.md) — L1-L6 layer definitions
@@ -386,8 +386,9 @@ tests/
 
 ---
 
-## What's Still Open
+## Resolved Decisions
 
-1. **Which LLM provider for MVP?** Gemini is in the adapter but need to confirm availability/API key.
-2. **CLI library**: `argparse` (stdlib) or `click` (nicer UX, external dep)?
-3. **Spec template location**: Ship with SpecWeaver (in `config/templates/`) or generate on `sw init`?
+1. **LLM provider**: Google Gemini API (user has subscription). Use latest available model (gemini-3.1 or current top tier).
+2. **CLI library**: **Typer** — modern, type-hint-based, built on Click, most community momentum ("FastAPI of CLIs"). Single external dependency, used by 38%+ of new CLI projects.
+3. **Spec template**: Ships with SpecWeaver (in `config/templates/`). Copied to target project on `sw init` for customization.
+4. **New repository**: SpecWeaver will be built in a fresh repo. Original project: [github.com/sbula/flowManager](https://github.com/sbula/flowManager). See `docs/ORIGINS.md` for full attribution.
