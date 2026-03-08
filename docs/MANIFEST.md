@@ -37,6 +37,13 @@
 **Rule**: Explains "How it works" conceptually.
 **Naming**: Topic-based (e.g., `fractal_patterns.md`).
 *   `00_system_map.md`: High-level system architecture diagram.
+*   `methodology_index.md`: **Start Here for Methodology**. Consolidated index of the spec methodology framework.
+*   `spec_methodology.md`: Core framework: two-level spec model, 5-section template, 5 structure tests, fractal levels.
+*   `completeness_tests.md`: Second axis: 5 completeness tests, two-axis model, static analysis sketches.
+*   `lifecycle_layers.md`: DRAFT — layer-specific implementation guides (L1 Business → L6 Deploy).
+*   `constitution_template.md`: DRAFT — universal project constitution template. Ref: [DMZ SOUL.md](https://github.com/TheMorpheus407/the-dmz).
+*   `review_checklists.md`: DRAFT — project-specific review checklist template. Ref: [DMZ reviewer.md](https://github.com/TheMorpheus407/the-dmz).
+*   `spec_review_pipeline.md`: Multi-stage LLM review pipeline (PO → Architect → Junior Dev).
 *   `fractal_patterns.md`: The L1-L5 recursive planning model.
 *   `rag_architecture.md`: Design for the retrieval-augmented generation layer.
 
@@ -47,10 +54,11 @@
 ### `docs/proposals/` (The Future)
 **Content**: RFCs and Roadmaps.
 **Rule**: Living until merged or rejected.
+*   `specweaver_roadmap.md`: Evolution plan from FlowManager to SpecWeaver.
+*   `mvp_feature_definition.md`: MVP scope — features F1-F7, module map, architecture constraints.
 
 ### `docs/archive/` (The Graveyard)
-**Content**: Old drafts, obsolete protocols.
-**Rule**: Read-only reference.
+**Content**: Deleted. Valuable information extracted to `docs/analysis/legacy_extraction.md`.
 
 ## 2. Information hierarchy
 1.  **Specs** (`docs/specs`) override everything.

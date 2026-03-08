@@ -68,7 +68,7 @@ A **Flow** describes a Control Structure (Sequence, Branch, Loop).
 *   **Mechanism**: **Explicit Overlay**.
 *   **Logic**:
     *   `AtomResult.exports` (Dict) is merged into `WorkflowState.context_cache`.
-    *   **Collision Policy**: **Overwrite**. The latest step takes precedence.
+    *   **Collision Policy**: **Overwrite**. The latest step takes precedence. **⚠️ SUPERSEDED within Flow context**: When executing inside a Flow (01_08), collision policy is governed by the step's `merge_strategy` (01_08 §2.3). Default is `fail` — a collision raises `SchemaError`. Explicit `merge_strategy: overwrite` restores last-write-wins. The blanket overwrite policy described here applies ONLY to legacy non-Flow Engine dispatch paths.
     *   **Namespacing**: Atoms SHOULD return namespaced keys (e.g., `git.status` instead of `status`) to avoid accidental collisions.
 
 ### 3.4.2 Nested State (Run-in-Place)

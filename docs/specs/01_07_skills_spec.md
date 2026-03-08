@@ -141,11 +141,11 @@ graph LR
     A[Agent / Persona] -->|Invokes via LLM function-call| B[Skill]
     B -->|Uses| C[Tools - 01_04]
     B -->|Returns| F[SkillResult]
-    G[Engine] -->|Executes as Flow Step| B
+    G[Engine] -->|Executes via AgentAtom| B
 ```
 
 **Calling Model** (resolves the ambiguity):
-*   **Path 1 — Engine Step**: The Flow Engine executes a Skill directly as a step (`"type": "skill"` in 01_08 §2.1). The Engine instantiates the Skill, calls `execute()`, and processes the `SkillResult`.
+*   **Path 1 — Engine Step (via AgentAtom)**: The Flow Engine executes a Skill **indirectly** through an `AgentAtom` step (`"type": "atom"`, `"target": "AgentAtom"` in 01_08 §2.1). The Engine dispatches the `AgentAtom` configured with the target Skill and Persona; the `AgentAtom` instantiates the Skill, calls `execute()`, and maps the `SkillResult` into its `AtomResult`. There is NO `"type": "skill"` step type — Skills are consumed exclusively through `AgentAtom`.
 *   **Path 2 — LLM Function-Call**: The `AgentAtom` (01_05 §3) exposes Skills as callable tools to the LLM via `Skill.as_tool()`. When the LLM decides to invoke a Skill, the AgentAtom intercepts the function call, executes `Skill.execute()`, and returns the result to the LLM as a tool response.
 *   Both paths use the **same `execute()` method** and return the **same `SkillResult` type**.
 
